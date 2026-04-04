@@ -27,7 +27,8 @@ def _check_update_bg(page: ft.Page) -> None:
         if result is None:
             return
         latest_version, download_url = result
-        page.run_thread(lambda: _show_update_prompt(page, latest_version, download_url))
+        # Chama diretamente — Flet sincroniza threads internamente
+        _show_update_prompt(page, latest_version, download_url)
     except Exception:
         pass
 
@@ -121,7 +122,7 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
                         page.update()
                     except Exception:
                         pass
-                page.run_thread(_fail)
+                _fail()
                 return
 
             progress_text.value = "Concluído. Aplicando atualização..."
@@ -136,7 +137,12 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
 
     update_btn.on_click = _do_update
 
-    page.open(dlg)
+    # Compatível com Flet 0.21+
+    try:
+        page.open(dlg)
+    except AttributeError:
+        page.dialog = dlg
+        dlg.open = True
     page.update()
 
 
