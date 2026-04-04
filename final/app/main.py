@@ -16,35 +16,30 @@ from .components.loading import setup_loading
 
 
 def _check_update_thread(page: ft.Page) -> None:
-    """Roda em thread daemon. Verifica atualização sem bloquear o startup."""
+    """Roda em thread daemon. Faz o HTTP check e agenda a UI no event loop."""
     import time
-    time.sleep(3)  # aguarda a UI terminar de renderizar
+    time.sleep(3)
     try:
         from .updater import check_for_update
         result = check_for_update()
         if result is not None:
             latest_version, download_url = result
-            _show_update_prompt(page, latest_version, download_url)
+            page.run_task(_show_update_prompt, page, latest_version, download_url)
     except Exception:
-        pass  # sem internet / erro silencioso no startup
+        pass
 
 
-def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -> None:
-    """Exibe diálogo de atualização com barra de progresso."""
+async def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -> None:
+    """Exibe diálogo de atualização. Deve rodar no event loop do Flet."""
     from .updater import get_current_version, download_update, apply_update
 
-    progress_bar = ft.ProgressBar(
-        color=ACCENT,
-        bgcolor=BORDER,
-        value=0,
-        visible=False,
-    )
+    progress_bar = ft.ProgressBar(color=ACCENT, bgcolor=BORDER, value=0, visible=False)
     progress_text = ft.Text("", size=11, color=TEXT_DIM)
 
     update_btn = ft.ElevatedButton(
         "Atualizar agora",
         bgcolor=ACCENT,
-        color=ft.colors.WHITE,
+        color=ft.Colors.WHITE,
         height=38,
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
     )
@@ -65,8 +60,8 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
             width=360,
             content=ft.Column([
                 ft.Text(
-                    f"Uma nova versão está disponível: v{latest_version}\n"
-                    f"Versão atual: v{get_current_version()}",
+                    f"Nova versão disponível: v{latest_version}  "
+                    f"(atual: v{get_current_version()})",
                     size=13,
                     color=TEXT,
                 ),
@@ -79,67 +74,51 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
     )
 
     def _close(_=None) -> None:
-        dlg.open = False
-        try:
-            page.overlay.remove(dlg)
-        except (ValueError, Exception):
-            pass
-        try:
-            page.update()
-        except Exception:
-            pass
+        page.pop_dialog()
+        page.update()
 
     later_btn.on_click = _close
 
-    def _do_update(_=None) -> None:
+    async def _do_update(_=None) -> None:
         update_btn.disabled = True
         later_btn.disabled = True
         progress_bar.visible = True
         progress_text.value = "Preparando download..."
-        try:
-            page.update()
-        except Exception:
-            pass
+        page.update()
 
         def _download_thread() -> None:
             def _progress(done: int, total: int) -> None:
                 progress_bar.value = done / total
                 progress_text.value = f"Baixando... {int(done / total * 100)}%"
-                try:
-                    page.update()
-                except Exception:
-                    pass
+                page.run_task(_refresh)
+
+            async def _refresh() -> None:
+                page.update()
 
             new_exe = download_update(download_url, _progress)
 
             if new_exe is None:
-                def _fail() -> None:
-                    progress_text.value = "Falha no download. Tente mais tarde."
-                    update_btn.disabled = False
-                    later_btn.disabled = False
-                    progress_bar.visible = False
-                    try:
-                        page.update()
-                    except Exception:
-                        pass
-                _fail()
+                page.run_task(_on_fail)
                 return
 
-            progress_text.value = "Concluído. Aplicando atualização..."
-            try:
-                page.update()
-            except Exception:
-                pass
+            page.run_task(_on_done, new_exe)
 
-            apply_update(new_exe)  # lança o .bat e chama sys.exit(0)
+        async def _on_fail() -> None:
+            progress_text.value = "Falha no download. Tente mais tarde."
+            update_btn.disabled = False
+            later_btn.disabled = False
+            progress_bar.visible = False
+            page.update()
+
+        async def _on_done(new_exe) -> None:
+            progress_text.value = "Concluído. Aplicando atualização..."
+            page.update()
+            apply_update(new_exe)
 
         threading.Thread(target=_download_thread, daemon=True).start()
 
     update_btn.on_click = _do_update
-
-    page.overlay.append(dlg)
-    dlg.open = True
-    page.update()
+    page.show_dialog(dlg)
 
 
 async def main(page: ft.Page) -> None:
@@ -180,47 +159,31 @@ async def main(page: ft.Page) -> None:
     sidebar.log_clear_btn.on_click = lambda _: log_panel.clear()  # type: ignore[attr-defined]
     sidebar.send_pdf_btn.on_click = lambda _: show_email_dialog(ctrl)  # type: ignore[attr-defined]
 
-    def _on_manual_update(_=None) -> None:
+    async def _on_manual_update(_=None) -> None:
         update_btn_ref = sidebar.update_check_btn  # type: ignore[attr-defined]
         update_btn_ref.disabled = True
         update_btn_ref.icon = ft.Icons.HOURGLASS_TOP_OUTLINED
-        try:
-            page.update()
-        except Exception:
-            pass
+        page.update()
 
         def _run() -> None:
             from .updater import check_for_update
-            msg = ""
-            update_found = False
             try:
                 result = check_for_update()
                 if result is None:
-                    msg = "Programa já está na versão mais recente."
+                    page.run_task(_done, None, None, "Programa já está na versão mais recente.")
                 else:
-                    update_found = True
                     latest_version, download_url = result
+                    page.run_task(_done, latest_version, download_url, None)
             except Exception as exc:
-                msg = f"Erro ao verificar atualizações: {exc}"
+                page.run_task(_done, None, None, f"Erro ao verificar: {exc}")
 
+        async def _done(latest_version, download_url, msg) -> None:
             update_btn_ref.disabled = False
             update_btn_ref.icon = ft.Icons.SYSTEM_UPDATE_OUTLINED
-            if update_found:
-                try:
-                    page.update()
-                except Exception:
-                    pass
-                _show_update_prompt(page, latest_version, download_url)  # type: ignore[possibly-undefined]
+            if latest_version:
+                await _show_update_prompt(page, latest_version, download_url)
             else:
-                page.snack_bar = ft.SnackBar(
-                    ft.Text(msg),
-                    duration=5000,
-                )
-                page.snack_bar.open = True
-                try:
-                    page.update()
-                except Exception:
-                    pass
+                page.show_dialog(ft.SnackBar(content=ft.Text(msg), duration=5000))
 
         threading.Thread(target=_run, daemon=True).start()
 
