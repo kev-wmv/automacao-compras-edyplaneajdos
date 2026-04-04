@@ -196,33 +196,9 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         disabled=True,
     )
 
-    # FilePicker para config
-    config_picker = ft.FilePicker()
-    ctrl.page.services.append(config_picker)
-
-    async def _pick_config() -> None:
-        selected_files = await config_picker.pick_files(
-            dialog_title="Selecionar arquivo .config",
-            allowed_extensions=["config", "json"],
-        )
-        if selected_files:
-            from pathlib import Path
-            ctrl.do_select_config_file(Path(selected_files[0].path))
-
     # Botões utilitários — ícone com tooltip
     _icon_btn_style = ft.ButtonStyle(
         shape=ft.RoundedRectangleBorder(radius=6),
-    )
-
-    config_btn = ft.IconButton(
-        icon=ft.Icons.SETTINGS_OUTLINED,
-        icon_size=16,
-        tooltip="Configurações",
-        icon_color=C_ON_SURFACE_VARIANT,
-        width=36,
-        height=30,
-        style=_icon_btn_style,
-        on_click=lambda _: ctrl.page.run_task(_pick_config),
     )
 
     log_toggle_btn = ft.IconButton(
@@ -302,7 +278,7 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         headless_cb,
         start_btn,
         send_pdf_btn,
-        ft.Row([config_btn, log_toggle_btn, log_clear_btn], spacing=4,
+        ft.Row([log_toggle_btn, log_clear_btn], spacing=4,
                alignment=ft.MainAxisAlignment.CENTER),
     ], spacing=10, expand=True)
 

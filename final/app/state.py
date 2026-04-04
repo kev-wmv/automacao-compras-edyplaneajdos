@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -17,7 +16,7 @@ from ..services import (
     process_folder,
     scan_folder_files,
 )
-from ..cadastro_clientes_finger import STORES, OCR_FIELD_KEYS, _config_path
+from ..cadastro_clientes_finger import STORES, OCR_FIELD_KEYS
 
 
 class AppController:
@@ -126,24 +125,6 @@ class AppController:
         self.notify()
         self.page.update()
         self.show_snackbar("Configuracao recarregada com sucesso.")
-
-    def do_select_config_file(self, path: Path) -> None:
-        """Substitui o lojas.config pelo arquivo selecionado e recarrega."""
-        target = _config_path()
-        try:
-            shutil.copy2(str(path), str(target))
-        except Exception as exc:
-            self._alert("Erro ao copiar config", str(exc))
-            return
-        self.do_reload_config()
-
-    def do_open_config(self) -> None:
-        """Abre lojas.config no editor padrão (legado)."""
-        from ..cadastro_clientes_finger import open_config_file
-        try:
-            open_config_file()
-        except Exception as exc:
-            self._alert("Erro", str(exc))
 
     def do_cancel_process(self) -> None:
         """Sinaliza cancelamento do processo em andamento."""

@@ -12,6 +12,8 @@ ENTRY_POINT = PROJECT_ROOT / "run_app.py"
 DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 CONFIG_PATH = PROJECT_ROOT / "lojas.config"
+VERSION_FILE = PROJECT_ROOT / "version.txt"
+GENERATED_VERSION_MODULE = PROJECT_ROOT / "final" / "app" / "_version.py"
 VENV_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
 BUILD_LOG_PATH = PROJECT_ROOT / "build_log.txt"
 FLET_RUNTIME_ARCHIVE = PROJECT_ROOT / "flet-windows.zip"
@@ -37,6 +39,7 @@ REQUIRED_MODULES = (
     ("playwright", "playwright"),
     ("pdfplumber", "pdfplumber"),
     ("PIL", "Pillow"),
+    ("requests", "requests"),
 )
 
 
@@ -157,6 +160,31 @@ def _prepare_flet_runtime_archive(python_executable: Path) -> Path:
     return archive_path
 
 
+def _write_version_module() -> str:
+    """Lê version.txt e gera final/app/_version.py para o PyInstaller embutir."""
+    if not VERSION_FILE.exists():
+        raise SystemExit(
+            "version.txt nao encontrado.\n"
+            "Crie o arquivo na raiz do projeto com o numero da versao (ex: 1.0.0)."
+        )
+    version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    if not version:
+        raise SystemExit("version.txt esta vazio. Adicione um numero de versao (ex: 1.0.0).")
+
+    GENERATED_VERSION_MODULE.write_text(
+        f'# Gerado automaticamente por build_exe.py — nao editar\nVERSION = "{version}"\n',
+        encoding="utf-8",
+    )
+    print(f"Versao {version} embutida no build.")
+    return version
+
+
+def _delete_version_module() -> None:
+    """Remove o _version.py gerado após o build para não commitar acidentalmente."""
+    if GENERATED_VERSION_MODULE.exists():
+        GENERATED_VERSION_MODULE.unlink()
+
+
 def _build_command(python_executable: Path, runtime_archive: Path) -> Sequence[str]:
     exclude_modules = [
         "torch", "torchvision", "torchaudio", "torchtext", "matplotlib",
@@ -184,6 +212,14 @@ def _build_command(python_executable: Path, runtime_archive: Path) -> Sequence[s
         "flet.controls.cupertino",
         "--add-data",
         f"{runtime_archive}{os.pathsep}flet_desktop/app",
+        # Embute lojas.config dentro do .exe (oculto do usuário final)
+        "--add-data",
+        f"{CONFIG_PATH}{os.pathsep}.",
+        # Dependências para auto-atualização via HTTPS
+        "--hidden-import", "requests",
+        "--hidden-import", "urllib3",
+        "--hidden-import", "certifi",
+        "--collect-data", "certifi",
         "--name",
         "EncomendasEdy",
     ]
@@ -195,13 +231,6 @@ def _build_command(python_executable: Path, runtime_archive: Path) -> Sequence[s
         str(ENTRY_POINT),
     ])
     return command
-
-
-def _copy_public_config() -> None:
-    if not CONFIG_PATH.exists():
-        raise SystemExit(f"Arquivo de configuracao nao encontrado: {CONFIG_PATH}")
-    DIST_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(CONFIG_PATH, DIST_DIR / CONFIG_PATH.name)
 
 
 def _run_build_command(command: Sequence[str]) -> int:
@@ -231,35 +260,45 @@ def main() -> None:
     if not ENTRY_POINT.exists():
         raise SystemExit(f"Arquivo de entrada nao encontrado: {ENTRY_POINT}")
 
+    if not CONFIG_PATH.exists():
+        raise SystemExit(f"Arquivo de configuracao nao encontrado: {CONFIG_PATH}")
+
     python_executable = _preferred_python()
     print("Preparando ambiente de build...")
     print(f"Python selecionado: {python_executable}")
     _validate_build_environment(python_executable)
-    _cleanup_previous_build()
-    runtime_archive = _prepare_flet_runtime_archive(python_executable)
-    print(f"Runtime Flet embutido a partir de: {runtime_archive}")
 
-    command = list(_build_command(python_executable, runtime_archive))
-    print("Iniciando compilacao. Isso pode levar alguns minutos...")
-    print("Comando:", " ".join(command))
-    print(f"Log do build: {BUILD_LOG_PATH}")
+    version = _write_version_module()
 
-    returncode = _run_build_command(command)
-    if returncode != 0:
-        raise SystemExit(
-            f"Falha na geracao do executavel (codigo {returncode}). "
-            f"Consulte o log em: {BUILD_LOG_PATH}"
-        )
+    try:
+        _cleanup_previous_build()
+        runtime_archive = _prepare_flet_runtime_archive(python_executable)
+        print(f"Runtime Flet embutido a partir de: {runtime_archive}")
 
-    exe_path = DIST_DIR / "EncomendasEdy.exe"
-    if not exe_path.exists():
-        raise SystemExit("Build concluido, mas nao foi possivel localizar o executavel em dist/.")
+        command = list(_build_command(python_executable, runtime_archive))
+        print("Iniciando compilacao. Isso pode levar alguns minutos...")
+        print("Comando:", " ".join(command))
+        print(f"Log do build: {BUILD_LOG_PATH}")
 
-    _copy_public_config()
+        returncode = _run_build_command(command)
+        if returncode != 0:
+            raise SystemExit(
+                f"Falha na geracao do executavel (codigo {returncode}). "
+                f"Consulte o log em: {BUILD_LOG_PATH}"
+            )
+
+        exe_path = DIST_DIR / "EncomendasEdy.exe"
+        if not exe_path.exists():
+            raise SystemExit("Build concluido, mas nao foi possivel localizar o executavel em dist/.")
+
+    finally:
+        _delete_version_module()
+
     print("================================================================")
     print("BUILD CONCLUIDO COM SUCESSO!")
-    print(f"O executavel esta em: {exe_path}")
-    print("Arquivo publico de configuracao copiado para dist/lojas.config.")
+    print(f"Versao: {version}")
+    print(f"Executavel: {exe_path}")
+    print("lojas.config embutido dentro do .exe (nao exposto ao usuario).")
     print(f"Log salvo em: {BUILD_LOG_PATH}")
     print("================================================================")
 

@@ -1,9 +1,10 @@
 """Entry point da aplicação Flet — Encomendas Edy v6.0."""
 from __future__ import annotations
 
+import threading
 import flet as ft
 
-from .theme import BG, BORDER, THEME, DARK_THEME, C_SURFACE
+from .theme import BG, BORDER, THEME, DARK_THEME, C_SURFACE, ACCENT, ACCENT_SOFT, TEXT, TEXT_DIM, TEXT_SEC
 from .state import AppController
 from .components.sidebar import build_sidebar
 from .components.folder_card import build_folder_card
@@ -12,6 +13,132 @@ from .components.client_card import build_client_card
 from .components.log_panel import build_log_panel
 from .components.email_dialog import show_email_dialog
 from .components.loading import setup_loading
+
+
+def _check_update_bg(page: ft.Page) -> None:
+    """
+    Roda em thread daemon. Verifica se há atualização disponível no GitHub.
+    Se houver, agenda a exibição do diálogo na thread de UI.
+    Qualquer exceção é silenciada — falha no update nunca deve travar o app.
+    """
+    try:
+        from .updater import check_for_update
+        result = check_for_update()
+        if result is None:
+            return
+        latest_version, download_url = result
+        page.run_thread(lambda: _show_update_prompt(page, latest_version, download_url))
+    except Exception:
+        pass
+
+
+def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -> None:
+    """Exibe diálogo de atualização com barra de progresso."""
+    from .updater import get_current_version, download_update, apply_update
+
+    progress_bar = ft.ProgressBar(
+        color=ACCENT,
+        bgcolor=BORDER,
+        value=0,
+        visible=False,
+    )
+    progress_text = ft.Text("", size=11, color=TEXT_DIM)
+
+    update_btn = ft.ElevatedButton(
+        "Atualizar agora",
+        bgcolor=ACCENT,
+        color=ft.colors.WHITE,
+        height=38,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
+    )
+    later_btn = ft.OutlinedButton(
+        "Mais tarde",
+        height=38,
+        style=ft.ButtonStyle(
+            color=TEXT_DIM,
+            shape=ft.RoundedRectangleBorder(radius=8),
+            side=ft.BorderSide(1, BORDER),
+        ),
+    )
+
+    dlg = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Atualização disponível", weight=ft.FontWeight.W_600),
+        content=ft.Container(
+            width=360,
+            content=ft.Column([
+                ft.Text(
+                    f"Uma nova versão está disponível: v{latest_version}\n"
+                    f"Versão atual: v{get_current_version()}",
+                    size=13,
+                    color=TEXT,
+                ),
+                progress_text,
+                progress_bar,
+                ft.Row([update_btn, later_btn], spacing=10),
+            ], spacing=12, tight=True),
+            padding=ft.padding.only(top=4),
+        ),
+    )
+
+    def _close(_=None) -> None:
+        dlg.open = False
+        try:
+            page.update()
+        except Exception:
+            pass
+
+    later_btn.on_click = _close
+
+    def _do_update(_=None) -> None:
+        update_btn.disabled = True
+        later_btn.disabled = True
+        progress_bar.visible = True
+        progress_text.value = "Preparando download..."
+        try:
+            page.update()
+        except Exception:
+            pass
+
+        def _download_thread() -> None:
+            def _progress(done: int, total: int) -> None:
+                progress_bar.value = done / total
+                progress_text.value = f"Baixando... {int(done / total * 100)}%"
+                try:
+                    page.update()
+                except Exception:
+                    pass
+
+            new_exe = download_update(download_url, _progress)
+
+            if new_exe is None:
+                def _fail() -> None:
+                    progress_text.value = "Falha no download. Tente mais tarde."
+                    update_btn.disabled = False
+                    later_btn.disabled = False
+                    progress_bar.visible = False
+                    try:
+                        page.update()
+                    except Exception:
+                        pass
+                page.run_thread(_fail)
+                return
+
+            progress_text.value = "Concluído. Aplicando atualização..."
+            try:
+                page.update()
+            except Exception:
+                pass
+
+            apply_update(new_exe)  # lança o .bat e chama sys.exit(0)
+
+        threading.Thread(target=_download_thread, daemon=True).start()
+
+    update_btn.on_click = _do_update
+
+    page.open(dlg)
+    page.update()
+
 
 async def main(page: ft.Page) -> None:
     """Configura e renderiza a UI principal."""
@@ -80,3 +207,6 @@ async def main(page: ft.Page) -> None:
             content_container,
         ], spacing=0, expand=True),
     )
+
+    # ── Verificação de atualização (em background, não bloqueia o startup) ────
+    threading.Thread(target=_check_update_bg, args=(page,), daemon=True).start()

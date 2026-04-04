@@ -148,7 +148,8 @@ def _finger_browser_visible() -> bool:
 
 def _app_base_dir() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        # sys._MEIPASS é a pasta temporária onde o PyInstaller extrai os arquivos embutidos
+        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
     return Path(__file__).resolve().parent.parent
 
 
@@ -628,17 +629,6 @@ def ensure_config(include_meta: bool = False) -> Dict[str, Any]:
 
 
 
-
-
-def open_config_file() -> None:
-    ensure_config()
-    path = _config_path()
-    if sys.platform.startswith("win"):
-        os.startfile(str(path))
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
-    else:
-        subprocess.Popen(["xdg-open", str(path)])
 
 
 def cadastrar_cliente(
