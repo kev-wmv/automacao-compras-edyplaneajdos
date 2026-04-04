@@ -15,19 +15,16 @@ from .components.email_dialog import show_email_dialog
 from .components.loading import setup_loading
 
 
-def _check_update_bg(page: ft.Page) -> None:
-    """
-    Roda em thread daemon. Verifica se há atualização disponível no GitHub.
-    Se houver, agenda a exibição do diálogo na thread de UI.
-    Qualquer exceção é silenciada — falha no update nunca deve travar o app.
-    """
+def _check_update_thread(page: ft.Page) -> None:
+    """Roda em thread daemon. Verifica atualização sem bloquear o startup."""
+    import time
+    time.sleep(3)  # aguarda a UI terminar de renderizar
     try:
         from .updater import check_for_update
         result = check_for_update()
         if result is None:
             return
         latest_version, download_url = result
-        # Chama diretamente — Flet sincroniza threads internamente
         _show_update_prompt(page, latest_version, download_url)
     except Exception:
         pass
@@ -85,6 +82,10 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
     def _close(_=None) -> None:
         dlg.open = False
         try:
+            page.overlay.remove(dlg)
+        except (ValueError, Exception):
+            pass
+        try:
             page.update()
         except Exception:
             pass
@@ -137,12 +138,8 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
 
     update_btn.on_click = _do_update
 
-    # Compatível com Flet 0.21+
-    try:
-        page.open(dlg)
-    except AttributeError:
-        page.dialog = dlg
-        dlg.open = True
+    page.overlay.append(dlg)
+    dlg.open = True
     page.update()
 
 
@@ -184,6 +181,42 @@ async def main(page: ft.Page) -> None:
     sidebar.log_clear_btn.on_click = lambda _: log_panel.clear()  # type: ignore[attr-defined]
     sidebar.send_pdf_btn.on_click = lambda _: show_email_dialog(ctrl)  # type: ignore[attr-defined]
 
+    def _on_manual_update(_=None) -> None:
+        update_btn_ref = sidebar.update_check_btn  # type: ignore[attr-defined]
+        update_btn_ref.disabled = True
+        update_btn_ref.icon = ft.Icons.HOURGLASS_TOP_OUTLINED
+        try:
+            page.update()
+        except Exception:
+            pass
+
+        def _run() -> None:
+            from .updater import check_for_update
+            result = check_for_update()
+            update_btn_ref.disabled = False
+            update_btn_ref.icon = ft.Icons.SYSTEM_UPDATE_OUTLINED
+            if result is None:
+                page.snack_bar = ft.SnackBar(
+                    ft.Text("Programa já está na versão mais recente."),
+                    duration=3000,
+                )
+                page.snack_bar.open = True
+                try:
+                    page.update()
+                except Exception:
+                    pass
+            else:
+                latest_version, download_url = result
+                try:
+                    page.update()
+                except Exception:
+                    pass
+                _show_update_prompt(page, latest_version, download_url)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    sidebar.update_check_btn.on_click = _on_manual_update  # type: ignore[attr-defined]
+
     # ── Layout principal ──────────────────────────────────────────────────────
     # Row superior: folder + projetos — altura fixa para simetria
     top_row = ft.Container(
@@ -214,5 +247,5 @@ async def main(page: ft.Page) -> None:
         ], spacing=0, expand=True),
     )
 
-    # ── Verificação de atualização (em background, não bloqueia o startup) ────
-    threading.Thread(target=_check_update_bg, args=(page,), daemon=True).start()
+    # ── Verificação de atualização (thread daemon, não bloqueia o startup) ──
+    threading.Thread(target=_check_update_thread, args=(page,), daemon=True).start()

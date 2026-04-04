@@ -45,11 +45,16 @@ def check_for_update() -> Optional[Tuple[str, str]]:
     """
     try:
         import requests  # noqa: PLC0415
+        import certifi
+
+        # Dentro do .exe (PyInstaller), certifi precisa de caminho explícito
+        ca_bundle = certifi.where()
 
         resp = requests.get(
             API_URL,
             timeout=TIMEOUT,
             headers={"Accept": "application/vnd.github+json"},
+            verify=ca_bundle,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -100,7 +105,8 @@ def download_update(
 
         dest = current_exe.parent / "EncomendasEdy_update.exe"
 
-        resp = requests.get(url, stream=True, timeout=120)
+        import certifi
+        resp = requests.get(url, stream=True, timeout=120, verify=certifi.where())
         resp.raise_for_status()
 
         total = int(resp.headers.get("content-length", 0))
