@@ -12,7 +12,6 @@ from .cadastro_clientes_finger import (
     cadastrar_cliente,
     ensure_config,
     get_contact_settings,
-    open_config_file,
 )
 from .cadastro_clientes_vitta import cadastrar_cliente_vitta
 from .cadastro_pedidos_finger import cadastrar_pedidos

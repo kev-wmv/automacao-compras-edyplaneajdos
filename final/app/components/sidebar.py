@@ -10,6 +10,7 @@ from ..theme import (
     C_PRIMARY, C_ON_PRIMARY, C_OUTLINE, C_OUTLINE_VARIANT,
 )
 from ..state import AppController
+from ..updater import get_current_version
 from ...cadastro_clientes_finger import STORES
 
 
@@ -249,8 +250,11 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
                     ft.Column([
                         ft.Text("Encomendas Edy", size=15,
                                 weight=ft.FontWeight.BOLD, color=C_ON_SURFACE),
-                        ft.Text("v6.0 · Kevin Gomes", size=9,
-                                color=C_ON_SURFACE_VARIANT),
+                        ft.Text(
+                            f"v{get_current_version()} · Kevin Gomes",
+                            size=9,
+                            color=C_ON_SURFACE_VARIANT,
+                        ),
                     ], spacing=0),
                 ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ]),

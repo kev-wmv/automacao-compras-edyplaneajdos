@@ -19,6 +19,10 @@
 # Segredos — nunca commitar
 .env
 
+# Ambientes virtuais
+.venv/
+.venv312/
+
 # Playwright
 node_modules/
 /test-results/

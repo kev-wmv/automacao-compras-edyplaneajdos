@@ -14,7 +14,8 @@ BUILD_DIR = PROJECT_ROOT / "build"
 CONFIG_PATH = PROJECT_ROOT / "lojas.config"
 VERSION_FILE = PROJECT_ROOT / "version.txt"
 GENERATED_VERSION_MODULE = PROJECT_ROOT / "final" / "app" / "_version.py"
-VENV_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
+VENV_PYTHON312 = PROJECT_ROOT / ".venv312" / "Scripts" / "python.exe"  # Python 3.12 — preferido para build
+VENV_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"        # Python 3.13 — fallback
 BUILD_LOG_PATH = PROJECT_ROOT / "build_log.txt"
 FLET_RUNTIME_ARCHIVE = PROJECT_ROOT / "flet-windows.zip"
 GENERATED_PATHS = (
@@ -44,6 +45,9 @@ REQUIRED_MODULES = (
 
 
 def _preferred_python() -> Path:
+    # Preferir Python 3.12 para build — PyInstaller tem incompatibilidades com Python 3.13
+    if VENV_PYTHON312.exists():
+        return VENV_PYTHON312
     if VENV_PYTHON.exists():
         return VENV_PYTHON
     return Path(sys.executable)

@@ -22,7 +22,6 @@ try:
         cadastrar_cliente,
         ensure_config,
         get_contact_settings,
-        open_config_file,
     )
 except ImportError:  # pragma: no cover
     from cadastro_clientes_finger import (
@@ -32,7 +31,6 @@ except ImportError:  # pragma: no cover
         cadastrar_cliente,
         ensure_config,
         get_contact_settings,
-        open_config_file,
     )
 try:
     from .cadastro_clientes_vitta import cadastrar_cliente_vitta
@@ -925,10 +923,7 @@ def run_ui() -> None:
         messagebox.showinfo("Configuracao", "Configuracao recarregada com sucesso.")
 
     def handle_open_config() -> None:
-        try:
-            open_config_file()
-        except Exception as exc:
-            messagebox.showerror("Erro", f"Nao foi possivel abrir o arquivo: {exc}")
+        messagebox.showinfo("Configuracao", "A configuracao agora e gerenciada pelo desenvolvedor.")
 
     def start_finger_process() -> None:
         store        = selected_store.get()
