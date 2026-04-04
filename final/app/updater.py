@@ -41,46 +41,47 @@ def check_for_update() -> Optional[Tuple[str, str]]:
     Consulta a API do GitHub para verificar se há uma versão mais nova.
 
     Retorna (versao_mais_nova, url_download) se houver atualização,
-    ou None se já estiver na versão mais recente ou sem acesso à rede.
+    ou None se já estiver na versão mais recente.
+
+    Lança exceção se a verificação falhar (sem internet, SSL, timeout, etc.)
+    — o chamador decide se silencia ou mostra ao usuário.
     """
-    try:
-        import requests  # noqa: PLC0415
-        import certifi
+    import requests  # noqa: PLC0415
+    import certifi
 
-        # Dentro do .exe (PyInstaller), certifi precisa de caminho explícito
-        ca_bundle = certifi.where()
+    # Dentro do .exe (PyInstaller), certifi precisa de caminho explícito
+    ca_bundle = certifi.where()
+    # Garante que o arquivo de certificados existe (pode não existir em builds antigos)
+    if not os.path.exists(ca_bundle):
+        ca_bundle = True  # type: ignore[assignment]
 
-        resp = requests.get(
-            API_URL,
-            timeout=TIMEOUT,
-            headers={"Accept": "application/vnd.github+json"},
-            verify=ca_bundle,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    resp = requests.get(
+        API_URL,
+        timeout=TIMEOUT,
+        headers={"Accept": "application/vnd.github+json"},
+        verify=ca_bundle,
+    )
+    resp.raise_for_status()
+    data = resp.json()
 
-        latest_tag = data.get("tag_name", "").lstrip("v")
-        if not latest_tag:
-            return None
-
-        # Procura o asset .exe na release
-        exe_url: Optional[str] = None
-        for asset in data.get("assets", []):
-            if asset.get("name", "").lower().endswith(".exe"):
-                exe_url = asset["browser_download_url"]
-                break
-
-        if not exe_url:
-            return None
-
-        if _parse_version(latest_tag) > _parse_version(get_current_version()):
-            return (latest_tag, exe_url)
-
+    latest_tag = data.get("tag_name", "").lstrip("v")
+    if not latest_tag:
         return None
 
-    except Exception:
-        # Sem internet, timeout, GitHub fora do ar — tudo ignorado silenciosamente
+    # Procura o asset .exe na release
+    exe_url: Optional[str] = None
+    for asset in data.get("assets", []):
+        if asset.get("name", "").lower().endswith(".exe"):
+            exe_url = asset["browser_download_url"]
+            break
+
+    if not exe_url:
         return None
+
+    if _parse_version(latest_tag) > _parse_version(get_current_version()):
+        return (latest_tag, exe_url)
+
+    return None
 
 
 def download_update(

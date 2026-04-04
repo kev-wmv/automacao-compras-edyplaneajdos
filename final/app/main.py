@@ -22,12 +22,11 @@ def _check_update_thread(page: ft.Page) -> None:
     try:
         from .updater import check_for_update
         result = check_for_update()
-        if result is None:
-            return
-        latest_version, download_url = result
-        _show_update_prompt(page, latest_version, download_url)
+        if result is not None:
+            latest_version, download_url = result
+            _show_update_prompt(page, latest_version, download_url)
     except Exception:
-        pass
+        pass  # sem internet / erro silencioso no startup
 
 
 def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -> None:
@@ -192,26 +191,36 @@ async def main(page: ft.Page) -> None:
 
         def _run() -> None:
             from .updater import check_for_update
-            result = check_for_update()
+            msg = ""
+            update_found = False
+            try:
+                result = check_for_update()
+                if result is None:
+                    msg = "Programa já está na versão mais recente."
+                else:
+                    update_found = True
+                    latest_version, download_url = result
+            except Exception as exc:
+                msg = f"Erro ao verificar atualizações: {exc}"
+
             update_btn_ref.disabled = False
             update_btn_ref.icon = ft.Icons.SYSTEM_UPDATE_OUTLINED
-            if result is None:
+            if update_found:
+                try:
+                    page.update()
+                except Exception:
+                    pass
+                _show_update_prompt(page, latest_version, download_url)  # type: ignore[possibly-undefined]
+            else:
                 page.snack_bar = ft.SnackBar(
-                    ft.Text("Programa já está na versão mais recente."),
-                    duration=3000,
+                    ft.Text(msg),
+                    duration=5000,
                 )
                 page.snack_bar.open = True
                 try:
                     page.update()
                 except Exception:
                     pass
-            else:
-                latest_version, download_url = result
-                try:
-                    page.update()
-                except Exception:
-                    pass
-                _show_update_prompt(page, latest_version, download_url)
 
         threading.Thread(target=_run, daemon=True).start()
 
