@@ -13,6 +13,7 @@ DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 CONFIG_PATH = PROJECT_ROOT / "lojas.config"
 VERSION_FILE = PROJECT_ROOT / "version.txt"
+ICON_PATH = PROJECT_ROOT / "icon.ico"
 GENERATED_VERSION_MODULE = PROJECT_ROOT / "final" / "app" / "_version.py"
 VENV_PYTHON312 = PROJECT_ROOT / ".venv312" / "Scripts" / "python.exe"  # Python 3.12 — preferido para build
 VENV_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"        # Python 3.13 — fallback
@@ -209,7 +210,7 @@ def _build_command(python_executable: Path, runtime_archive: Path) -> Sequence[s
         "--windowed",
         "--onefile",
         "--icon",
-        "NONE",
+        str(ICON_PATH),
         "--collect-data",
         "flet.controls.material",
         "--collect-data",
@@ -266,6 +267,9 @@ def main() -> None:
 
     if not CONFIG_PATH.exists():
         raise SystemExit(f"Arquivo de configuracao nao encontrado: {CONFIG_PATH}")
+
+    if not ICON_PATH.exists():
+        raise SystemExit(f"Arquivo de icone nao encontrado: {ICON_PATH}")
 
     python_executable = _preferred_python()
     print("Preparando ambiente de build...")
