@@ -7,8 +7,6 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
-
-
 # VERSION é gerado em _version.py pelo build_exe.py e embutido no .exe.
 # Em modo de desenvolvimento (python run_app.py), cai no fallback abaixo.
 try:
@@ -51,7 +49,9 @@ def check_for_update() -> Optional[Tuple[str, str]]:
     import requests  # noqa: PLC0415
     import certifi
 
+    # Dentro do .exe (PyInstaller), certifi precisa de caminho explícito
     ca_bundle = certifi.where()
+    # Garante que o arquivo de certificados existe (pode não existir em builds antigos)
     if not os.path.exists(ca_bundle):
         ca_bundle = True  # type: ignore[assignment]
 
@@ -68,6 +68,7 @@ def check_for_update() -> Optional[Tuple[str, str]]:
     if not latest_tag:
         return None
 
+    # Procura o asset .exe na release
     exe_url: Optional[str] = None
     for asset in data.get("assets", []):
         if asset.get("name", "").lower().endswith(".exe"):
@@ -143,25 +144,19 @@ def apply_update(new_exe_path: Path) -> None:
 
     current_exe = Path(sys.executable)
     bat_path = current_exe.parent / "update_helper.bat"
-    vbs_path = current_exe.parent / "update_helper.vbs"
 
     bat_content = (
         "@echo off\r\n"
-        "timeout /t 6 /nobreak > NUL\r\n"
-        f'move /y "{new_exe_path}" "{current_exe}"\r\n'
         "timeout /t 2 /nobreak > NUL\r\n"
+        f'move /y "{new_exe_path}" "{current_exe}"\r\n'
         f'start "" "{current_exe}"\r\n'
-        f'del "{vbs_path}"\r\n'
         'del "%~f0"\r\n'
     )
     bat_path.write_text(bat_content, encoding="ascii")
 
-    # VBScript executa o bat completamente oculto (wscript não abre janela)
-    vbs_content = f'CreateObject("WScript.Shell").Run "cmd /c """"{bat_path}""""", 0, False\r\n'
-    vbs_path.write_text(vbs_content, encoding="ascii")
-
+    # Lança o .bat desacoplado do processo atual
     subprocess.Popen(
-        ["wscript.exe", str(vbs_path)],
+        ["cmd.exe", "/c", str(bat_path)],
         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
         close_fds=True,
     )
