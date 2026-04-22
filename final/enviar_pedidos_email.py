@@ -12,6 +12,11 @@ PDF_PATTERN = re.compile(r"^PEDIDO\s+(.+?)\.pdf$", re.IGNORECASE)
 CLIENT_CODE_PATTERN = re.compile(r"^0*(\d+)[A-Z]{2}", re.IGNORECASE)
 REGISTRY_FILENAME = "pedidos_email_enviados.json"
 
+ESPECIAL_TOKEN = "ESPECIAL"
+ESPECIAL_SUPPLIER_KEY = "ESPECIAL"
+# Cobre variacoes: "PEDIDOS FABRICAS", "Pedidos Fabricas", "pedidos fabrica", etc.
+PEDIDOS_FABRICAS_PATTERN = re.compile(r"pedidos\s+f[aá]bricas?", re.IGNORECASE)
+
 _registry_lock = threading.Lock()
 
 
@@ -81,12 +86,48 @@ def unmark_email_sent(pdf_path: Path, folder_path: Path) -> None:
             _save_registry(folder_path, registry)
 
 
+def _is_under_pedidos_fabricas(pdf_path: Path) -> bool:
+    """True se algum ancestral do PDF casa com a pasta 'PEDIDOS FABRICAS' (com variacoes)."""
+    for parent in pdf_path.parents:
+        if PEDIDOS_FABRICAS_PATTERN.search(parent.name):
+            return True
+    return False
+
+
+def _has_especial_sibling(pdf_path: Path) -> bool:
+    """True se existe .pdf ou .dxf com 'ESPECIAL' no nome em qualquer descendente
+    do parent imediato do PDF. Inclui o proprio PDF na varredura (simplifica o check
+    do filename do pedido).
+    """
+    parent = pdf_path.parent
+    token = ESPECIAL_TOKEN.lower()
+    for f in parent.rglob("*"):
+        if not f.is_file():
+            continue
+        if f.suffix.lower() not in (".pdf", ".dxf"):
+            continue
+        if token in f.name.lower():
+            return True
+    return False
+
+
+def _detect_especial(pdf_path: Path) -> bool:
+    """ESPECIAL = PDF esta em PEDIDOS FABRICAS E (nome do PDF ou vizinho .pdf/.dxf tem ESPECIAL)."""
+    if not _is_under_pedidos_fabricas(pdf_path):
+        return False
+    return _has_especial_sibling(pdf_path)
+
+
 def scan_pdf_orders(folder_path: Path, config: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Varre folder_path recursivamente em busca de 'PEDIDO *.pdf'.
 
     Retorna lista de dicts:
         {id, supplier, path, emails_cc, send_without_cc, can_send, status, checked}
     status: 'pendente' | 'enviado' | 'sem_email'
+
+    Roteamento ESPECIAL: se o PDF esta sob pasta 'PEDIDOS FABRICAS' e o proprio
+    filename ou algum .pdf/.dxf vizinho contem 'ESPECIAL', os emails de CC sao
+    substituidos por fornecedores_email['ESPECIAL'] (TO continua destino_fixo).
     """
     fornecedores_email: Dict[str, List[str]] = config.get("fornecedores_email", {})
     orders: List[Dict[str, Any]] = []
@@ -105,15 +146,26 @@ def scan_pdf_orders(folder_path: Path, config: Dict[str, Any]) -> List[Dict[str,
 
         supplier = m.group(1).strip().upper()
 
-        # Lookup de e-mails: tentativa exata, depois parcial
-        raw_emails_cc: Optional[List[str]] = fornecedores_email.get(supplier)
-        if raw_emails_cc is None:
-            for key in fornecedores_email:
-                if key.upper() in supplier or supplier in key.upper():
-                    raw_emails_cc = fornecedores_email[key]
-                    break
-        if raw_emails_cc is None:
-            raw_emails_cc = []
+        # Roteamento ESPECIAL tem prioridade: se o PDF esta em PEDIDOS FABRICAS
+        # e o filename (ou algum .pdf/.dxf vizinho) contem ESPECIAL, usa os emails
+        # do entry "ESPECIAL" em vez do fornecedor detectado pelo nome do arquivo.
+        # Quando NAO eh especial, a chave ESPECIAL eh excluida do lookup por nome
+        # (senao suppliers tipo "VITTA ESPECIAL" casariam via substring match).
+        if _detect_especial(pdf):
+            raw_emails_cc: Optional[List[str]] = fornecedores_email.get(ESPECIAL_SUPPLIER_KEY, [])
+        else:
+            # Lookup de e-mails: tentativa exata, depois parcial.
+            # Exclui ESPECIAL do dicionario de busca pra evitar falso-positivo.
+            lookup = {k: v for k, v in fornecedores_email.items()
+                      if k.upper() != ESPECIAL_SUPPLIER_KEY}
+            raw_emails_cc = lookup.get(supplier)
+            if raw_emails_cc is None:
+                for key in lookup:
+                    if key.upper() in supplier or supplier in key.upper():
+                        raw_emails_cc = lookup[key]
+                        break
+            if raw_emails_cc is None:
+                raw_emails_cc = []
 
         send_without_cc = bool(raw_emails_cc) and all(
             not str(email).strip() for email in raw_emails_cc
