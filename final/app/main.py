@@ -64,7 +64,7 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
     update_btn = ft.ElevatedButton(
         "Atualizar agora",
         bgcolor=ACCENT,
-        color=ft.colors.WHITE,
+        color=ft.Colors.WHITE,
         height=38,
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
     )
