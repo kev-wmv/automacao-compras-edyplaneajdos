@@ -79,10 +79,9 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
     )
 
     def _close(_=None) -> None:
-        dlg.open = False
         try:
-            page.overlay.remove(dlg)
-        except (ValueError, Exception):
+            page.pop_dialog()
+        except Exception:
             pass
         try:
             page.update()
@@ -137,8 +136,7 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
 
     update_btn.on_click = _do_update
 
-    page.overlay.append(dlg)
-    dlg.open = True
+    page.show_dialog(dlg)
     page.update()
 
 
