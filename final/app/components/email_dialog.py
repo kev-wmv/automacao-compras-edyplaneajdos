@@ -52,6 +52,7 @@ def _status_badge(status: str, can_send: bool) -> ft.Container:
 def _order_row(
     o: dict,
     cb: ft.Checkbox,
+    cc_field: ft.TextField,
 ) -> ft.Container:
     """Cria uma linha de pedido estilizada como card inline."""
     icon_name = ft.Icons.MARK_EMAIL_READ_OUTLINED if o["status"] == "enviado" \
@@ -63,18 +64,25 @@ def _order_row(
         else WARNING
 
     return ft.Container(
-        content=ft.Row([
-            cb,
-            ft.Icon(icon_name, size=18, color=icon_color),
-            ft.Text(
-                o["supplier"],
-                size=12,
-                weight=ft.FontWeight.W_500,
-                color=TEXT,
-                expand=True,
-            ),
-            _status_badge(o["status"], o.get("can_send", False)),
-        ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        content=ft.Column([
+            ft.Row([
+                cb,
+                ft.Icon(icon_name, size=18, color=icon_color),
+                ft.Text(
+                    o["supplier"],
+                    size=12,
+                    weight=ft.FontWeight.W_500,
+                    color=TEXT,
+                    expand=True,
+                ),
+                _status_badge(o["status"], o.get("can_send", False)),
+            ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([
+                ft.Container(width=28),
+                ft.Text("CC:", size=10, color=TEXT_DIM, width=22),
+                cc_field,
+            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        ], spacing=4, tight=True),
         bgcolor=BG_ENTRY,
         border_radius=8,
         padding=ft.padding.symmetric(horizontal=12, vertical=8),
@@ -152,9 +160,34 @@ def show_email_dialog(ctrl: AppController) -> None:
         width=float("inf"),
     )
 
+    # ── Campo Para (TO) ───────────────────────────────────────────────────────
+    to_field = ft.TextField(
+        label="Para",
+        value=cfg.email_smtp.get("destino_fixo", ""),
+        text_size=12,
+        border_color=C_OUTLINE,
+        focused_border_color=ACCENT,
+        color=C_ON_SURFACE,
+        label_style=ft.TextStyle(size=10, color=C_ON_SURFACE_VARIANT),
+        border_radius=8,
+    )
+
     # ── Lista de pedidos ──────────────────────────────────────────────────────
     checkboxes: Dict[str, ft.Checkbox] = {}
+    cc_fields: Dict[str, ft.TextField] = {}
     order_controls: List[ft.Container] = []
+
+    def _make_cc_handler(order, cb_ref):
+        def handler(e):
+            if order["status"] != "sem_email":
+                return
+            has_cc = bool(e.control.value.strip())
+            cb_ref.disabled = not has_cc
+            if not has_cc:
+                cb_ref.value = False
+                order["checked"] = False
+            ctrl.page.update()
+        return handler
 
     for o in orders:
         can_check = o["status"] == "pendente" and bool(o.get("can_send"))
@@ -166,12 +199,37 @@ def show_email_dialog(ctrl: AppController) -> None:
             on_change=lambda e, order=o: order.__setitem__("checked", e.control.value),
         )
         checkboxes[o["id"]] = cb
-        order_controls.append(_order_row(o, cb))
+
+        is_sent = o["status"] == "enviado"
+        if o.get("send_without_cc"):
+            cc_hint = "sem CC"
+        elif is_sent:
+            cc_hint = ""
+        else:
+            cc_hint = "sem e-mail"
+
+        cc_field = ft.TextField(
+            value=", ".join(o.get("emails_cc", [])),
+            hint_text=cc_hint,
+            hint_style=ft.TextStyle(size=11, color=TEXT_DIM),
+            text_size=11,
+            read_only=is_sent,
+            border_color=C_OUTLINE_VARIANT if not is_sent else "transparent",
+            focused_border_color=ACCENT,
+            color=C_ON_SURFACE if not is_sent else TEXT_DIM,
+            content_padding=ft.padding.symmetric(horizontal=10, vertical=6),
+            border_radius=6,
+            expand=True,
+            dense=True,
+            on_change=_make_cc_handler(o, cb),
+        )
+        cc_fields[o["id"]] = cc_field
+        order_controls.append(_order_row(o, cb, cc_field))
 
     order_list = ft.ListView(
         controls=order_controls,
         spacing=6,
-        height=210,
+        height=260,
     )
 
     # ── Ações em lote ─────────────────────────────────────────────────────────
@@ -256,6 +314,7 @@ def show_email_dialog(ctrl: AppController) -> None:
                 header,
                 ft.Divider(height=1, color=C_OUTLINE_VARIANT),
                 remetente_dd,
+                to_field,
                 ft.Container(
                     content=ft.Column([
                         ft.Row([
@@ -294,9 +353,19 @@ def show_email_dialog(ctrl: AppController) -> None:
             ctrl.show_snackbar(f"Credenciais nao encontradas para '{remetente}'.")
             return
 
+        if not to_field.value.strip():
+            ctrl.show_snackbar("Campo 'Para' nao pode estar vazio.")
+            return
+
+        def _cc_for(o: dict) -> List[str]:
+            raw = cc_fields[o["id"]].value or ""
+            return [e.strip() for e in raw.split(",") if e.strip()]
+
         selecionados = [
             o for o in orders
-            if o.get("checked") and o["status"] == "pendente" and o.get("can_send")
+            if o.get("checked")
+            and o["status"] in ("pendente", "sem_email")
+            and (o.get("send_without_cc") or bool(_cc_for(o)))
         ]
         if not selecionados:
             ctrl.show_snackbar("Nenhum pedido marcado para envio.")
@@ -312,8 +381,13 @@ def show_email_dialog(ctrl: AppController) -> None:
         loja_nome = cfg.stores.get(s.selected_store, {}).get("loja_email", s.selected_store)
         client_code = extract_client_code(s.folder_path) if s.folder_path else ""
         ocr_snap = dict(s.ocr_results)
-        smtp_snap = dict(cfg.email_smtp)
         emp_snap = dict(cfg.empresa_info)
+
+        smtp_snap = dict(cfg.email_smtp)
+        smtp_snap["destino_fixo"] = to_field.value.strip()
+
+        # Snapshot dos CCs editados antes de entrar na thread
+        cc_snap: Dict[str, List[str]] = {o["id"]: _cc_for(o) for o in selecionados}
 
         total = len(selecionados)
         sent = [0]
@@ -339,7 +413,7 @@ def show_email_dialog(ctrl: AppController) -> None:
                     )
                     send_order_email(
                         smtp_snap, remetente, senha,
-                        o["emails_cc"], subj, body, o["path"],
+                        cc_snap[o["id"]], subj, body, o["path"],
                         extra_attachments=o.get("extra_attachments", []),
                     )
                     _mark_sent(o["path"], s.folder_path, remetente, o["supplier"])
