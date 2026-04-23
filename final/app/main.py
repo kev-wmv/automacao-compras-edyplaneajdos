@@ -147,10 +147,10 @@ async def main(page: ft.Page) -> None:
     page.dark_theme = DARK_THEME
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.bgcolor = C_SURFACE
-    page.window.width = 1120
-    page.window.height = 700
-    page.window.min_width = 900
-    page.window.min_height = 560
+    page.window.width = 1200
+    page.window.height = 820
+    page.window.min_width = 960
+    page.window.min_height = 680
     await page.window.center()
     page.padding = 0
     page.spacing = 0

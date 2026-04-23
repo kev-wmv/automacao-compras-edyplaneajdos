@@ -229,7 +229,7 @@ def show_email_dialog(ctrl: AppController) -> None:
     order_list = ft.ListView(
         controls=order_controls,
         spacing=6,
-        height=260,
+        height=220,
     )
 
     # ── Ações em lote ─────────────────────────────────────────────────────────
