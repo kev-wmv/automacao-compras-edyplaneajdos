@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sys
 import subprocess
+import signal
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
@@ -169,5 +170,6 @@ def apply_update(new_exe_path: Path) -> None:
         close_fds=True,
     )
 
-    # Fecha este processo para liberar o .exe e deixar o .bat agir
-    sys.exit(0)
+    # os._exit encerra o processo inteiro independente de qual thread chama.
+    # sys.exit() levanta SystemExit que é capturado pela thread atual, não mata o processo.
+    os._exit(0)
