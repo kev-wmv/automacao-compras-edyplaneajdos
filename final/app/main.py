@@ -131,13 +131,17 @@ def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -
                 pass
 
             apply_update(new_exe)  # lança o .bat (não faz exit)
-            # Fecha o Flet graciosamente — encerra Flutter + Python juntos,
-            # evitando o erro de DLL quando os._exit matava só o Python.
+            # Fecha o Flet graciosamente primeiro (evita erro de DLL do Flutter),
+            # depois força o exit do processo Python (page.window.close sozinho
+            # não termina o processo).
             try:
                 page.window.close()
             except Exception:
-                import os as _os
-                _os._exit(0)
+                pass
+            import time as _time
+            import os as _os
+            _time.sleep(0.8)  # deixa o Flutter iniciar o shutdown
+            _os._exit(0)
 
         threading.Thread(target=_download_thread, daemon=True).start()
 
