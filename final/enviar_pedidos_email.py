@@ -118,6 +118,20 @@ def _detect_especial(pdf_path: Path) -> bool:
     return _has_especial_sibling(pdf_path)
 
 
+def _collect_especial_dxfs(pdf_path: Path) -> List[Path]:
+    """Retorna lista ordenada de .dxf com 'ESPECIAL' no nome na arvore do parent do PDF.
+
+    Ex: PDF em FINGER/PEDIDO FINGER.pdf, DXFs em FINGER/DXFs/peca1_ESPECIAL.dxf -> [peca1_ESPECIAL.dxf].
+    """
+    parent = pdf_path.parent
+    token = ESPECIAL_TOKEN.lower()
+    found: List[Path] = []
+    for f in parent.rglob("*.dxf"):
+        if f.is_file() and token in f.name.lower():
+            found.append(f)
+    return sorted(found)
+
+
 def scan_pdf_orders(folder_path: Path, config: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Varre folder_path recursivamente em busca de 'PEDIDO *.pdf'.
 
@@ -151,7 +165,9 @@ def scan_pdf_orders(folder_path: Path, config: Dict[str, Any]) -> List[Dict[str,
         # do entry "ESPECIAL" em vez do fornecedor detectado pelo nome do arquivo.
         # Quando NAO eh especial, a chave ESPECIAL eh excluida do lookup por nome
         # (senao suppliers tipo "VITTA ESPECIAL" casariam via substring match).
-        if _detect_especial(pdf):
+        is_especial = _detect_especial(pdf)
+        extra_attachments: List[Path] = _collect_especial_dxfs(pdf) if is_especial else []
+        if is_especial:
             raw_emails_cc: Optional[List[str]] = fornecedores_email.get(ESPECIAL_SUPPLIER_KEY, [])
         else:
             # Lookup de e-mails: tentativa exata, depois parcial.
@@ -191,6 +207,8 @@ def scan_pdf_orders(folder_path: Path, config: Dict[str, Any]) -> List[Dict[str,
             "can_send": can_send,
             "status": status,
             "checked": status == "pendente",
+            "is_especial": is_especial,
+            "extra_attachments": extra_attachments,
         })
 
     return orders
@@ -210,6 +228,7 @@ def build_email_body(
     client_code: str,
     empresa_info: Dict[str, str],
     loja_nome: str,
+    is_especial: bool = False,
 ) -> str:
     hora = datetime.now().hour
     saudacao = "Bom dia!" if hora < 12 else "Boa tarde!"
@@ -250,10 +269,16 @@ def build_email_body(
 
     sep = "-" * 45
 
+    action_line = (
+        "Analisar viabilidade de peças e aprovar pra produção."
+        if is_especial
+        else f"Segue em anexo o pedido referente a {supplier}."
+    )
+
     lines = [
         saudacao,
         "",
-        f"Segue em anexo o pedido referente a {supplier}.",
+        action_line,
         "",
         sep,
         f"Empresa  : {empresa_codigo} - {empresa_nome}",
@@ -287,12 +312,16 @@ def send_pdf_email(
     subject: str,
     body: str,
     pdf_path: Path,
+    extra_attachments: Optional[List[Path]] = None,
 ) -> None:
     """Envia e-mail com PDF anexado via SMTP (STARTTLS ou SSL).
 
     BCC para o remetente garante que uma cópia fique na caixa de entrada
     do usuário para consulta futura, pois o KingHost SMTP não salva
     automaticamente os enviados.
+
+    extra_attachments: lista de paths adicionais (ex: .dxf do ESPECIAL) anexados
+    junto do PDF com MIME type generico (application/octet-stream).
     """
     msg = EmailMessage()
     msg["From"] = sender_email
@@ -309,6 +338,13 @@ def send_pdf_email(
         subtype="pdf",
         filename=pdf_path.name,
     )
+    for attachment in (extra_attachments or []):
+        msg.add_attachment(
+            attachment.read_bytes(),
+            maintype="application",
+            subtype="octet-stream",
+            filename=attachment.name,
+        )
 
     host = smtp_cfg["host"]
     port = int(smtp_cfg["port"])

@@ -335,10 +335,12 @@ def show_email_dialog(ctrl: AppController) -> None:
                     )
                     body = build_email_body(
                         o["supplier"], ocr_snap, client_code, emp_snap, loja_nome,
+                        is_especial=o.get("is_especial", False),
                     )
                     send_order_email(
                         smtp_snap, remetente, senha,
                         o["emails_cc"], subj, body, o["path"],
+                        extra_attachments=o.get("extra_attachments", []),
                     )
                     _mark_sent(o["path"], s.folder_path, remetente, o["supplier"])
                     o["status"] = "enviado"

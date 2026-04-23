@@ -1273,8 +1273,10 @@ def run_ui() -> None:
                 for o in selecionados:
                     try:
                         subj = build_email_subject(client_code, ocr_snap.get("cliente", ""), ocr_snap.get("numero_contrato", ""))
-                        body = build_email_body(o["supplier"], ocr_snap, client_code, emp_snap, loja_nome)
-                        send_pdf_email(smtp_snap, remetente, senha, o["emails_cc"], subj, body, o["path"])
+                        body = build_email_body(o["supplier"], ocr_snap, client_code, emp_snap, loja_nome,
+                                                is_especial=o.get("is_especial", False))
+                        send_pdf_email(smtp_snap, remetente, senha, o["emails_cc"], subj, body, o["path"],
+                                       extra_attachments=o.get("extra_attachments", []))
                         mark_email_sent(o["path"], root_snap, remetente, o["supplier"])
                         o["status"] = "enviado"
                         o["checked"] = False

@@ -159,9 +159,13 @@ def send_order_email(
     subject: str,
     body: str,
     pdf_path: Path,
+    extra_attachments: Optional[List[Path]] = None,
 ) -> None:
-    """Envia um e-mail de pedido PDF."""
-    send_pdf_email(smtp_config, sender, password, recipients, subject, body, pdf_path)
+    """Envia um e-mail de pedido PDF com anexos opcionais (ex: .dxf ESPECIAL)."""
+    send_pdf_email(
+        smtp_config, sender, password, recipients, subject, body, pdf_path,
+        extra_attachments=extra_attachments,
+    )
 
 
 def refresh_pdf_orders(folder_path: Path, cfg: ConfigData) -> List[Dict[str, Any]]:
