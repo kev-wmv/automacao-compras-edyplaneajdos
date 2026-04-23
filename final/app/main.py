@@ -24,7 +24,7 @@ def _check_update_thread(page: ft.Page) -> None:
         result = check_for_update()
         if result is not None:
             latest_version, download_url = result
-            _show_update_prompt(page, latest_version, download_url)
+            page.run_thread(lambda: _show_update_prompt(page, latest_version, download_url))
     except Exception:
         pass  # sem internet / erro silencioso no startup
 
@@ -204,11 +204,7 @@ async def main(page: ft.Page) -> None:
             update_btn_ref.disabled = False
             update_btn_ref.icon = ft.Icons.SYSTEM_UPDATE_OUTLINED
             if update_found:
-                try:
-                    page.update()
-                except Exception:
-                    pass
-                _show_update_prompt(page, latest_version, download_url)  # type: ignore[possibly-undefined]
+                page.run_thread(lambda: _show_update_prompt(page, latest_version, download_url))  # type: ignore[possibly-undefined]
             else:
                 page.snack_bar = ft.SnackBar(
                     ft.Text(msg),
