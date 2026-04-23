@@ -94,28 +94,12 @@ def _is_under_pedidos_fabricas(pdf_path: Path) -> bool:
     return False
 
 
-def _has_especial_sibling(pdf_path: Path) -> bool:
-    """True se existe .pdf ou .dxf com 'ESPECIAL' no nome em qualquer descendente
-    do parent imediato do PDF. Inclui o proprio PDF na varredura (simplifica o check
-    do filename do pedido).
-    """
-    parent = pdf_path.parent
-    token = ESPECIAL_TOKEN.lower()
-    for f in parent.rglob("*"):
-        if not f.is_file():
-            continue
-        if f.suffix.lower() not in (".pdf", ".dxf"):
-            continue
-        if token in f.name.lower():
-            return True
-    return False
-
-
 def _detect_especial(pdf_path: Path) -> bool:
-    """ESPECIAL = PDF esta em PEDIDOS FABRICAS E (nome do PDF ou vizinho .pdf/.dxf tem ESPECIAL)."""
-    if not _is_under_pedidos_fabricas(pdf_path):
-        return False
-    return _has_especial_sibling(pdf_path)
+    """ESPECIAL = PDF esta em PEDIDOS FABRICAS E o proprio nome contem 'ESPECIAL'."""
+    return (
+        _is_under_pedidos_fabricas(pdf_path)
+        and ESPECIAL_TOKEN.lower() in pdf_path.stem.lower()
+    )
 
 
 def _collect_especial_dxfs(pdf_path: Path) -> List[Path]:
