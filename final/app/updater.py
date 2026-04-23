@@ -74,7 +74,7 @@ def check_for_update() -> Optional[Tuple[str, str]]:
 
     latest_tag = data.get("tag_name", "").lstrip("v")
     if not latest_tag:
-        return None
+        raise RuntimeError(f"tag_name vazia na resposta da API: {data}")
 
     # Procura o asset .exe na release
     exe_url: Optional[str] = None
@@ -84,12 +84,15 @@ def check_for_update() -> Optional[Tuple[str, str]]:
             break
 
     if not exe_url:
-        return None
+        raise RuntimeError(f"Nenhum asset .exe na release {latest_tag}: assets={[a.get('name') for a in data.get('assets', [])]}")
 
-    if _parse_version(latest_tag) > _parse_version(get_current_version()):
+    current = get_current_version()
+    parsed_latest = _parse_version(latest_tag)
+    parsed_current = _parse_version(current)
+    if parsed_latest > parsed_current:
         return (latest_tag, exe_url)
 
-    return None
+    return None  # já na versão mais recente
 
 
 def download_update(

@@ -21,17 +21,30 @@ def _check_update_thread(page: ft.Page) -> None:
     import tempfile
     import traceback
     time.sleep(3)  # aguarda a UI terminar de renderizar
+
+    log_path = tempfile.gettempdir() + "/encomendas_update.log"
+    log_lines: list[str] = []
+
     try:
-        from .updater import check_for_update
+        from .updater import check_for_update, get_current_version
+        current = get_current_version()
+        log_lines.append(f"versao_atual: {current}")
         result = check_for_update()
+        if result is None:
+            log_lines.append(f"resultado_check: None (ja_na_ultima_versao ou versao_atual={current})")
+        else:
+            log_lines.append(f"resultado_check: atualizacao encontrada v{result[0]}")
         if result is not None:
             latest_version, download_url = result
+            log_lines.append("chamando _show_update_prompt...")
             _show_update_prompt(page, latest_version, download_url)
+            log_lines.append("dialog aberto ok")
     except Exception:
+        log_lines.append(traceback.format_exc())
+    finally:
         try:
-            log = tempfile.gettempdir() + "/encomendas_update.log"
-            with open(log, "w", encoding="utf-8") as f:
-                f.write(traceback.format_exc())
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(log_lines))
         except Exception:
             pass
 
