@@ -51,16 +51,24 @@ def check_for_update() -> Optional[Tuple[str, str]]:
 
     # Dentro do .exe (PyInstaller), certifi precisa de caminho explícito
     ca_bundle = certifi.where()
-    # Garante que o arquivo de certificados existe (pode não existir em builds antigos)
     if not os.path.exists(ca_bundle):
-        ca_bundle = True  # type: ignore[assignment]
+        ca_bundle = False  # type: ignore[assignment]
 
-    resp = requests.get(
-        API_URL,
-        timeout=TIMEOUT,
-        headers={"Accept": "application/vnd.github+json"},
-        verify=ca_bundle,
-    )
+    try:
+        resp = requests.get(
+            API_URL,
+            timeout=TIMEOUT,
+            headers={"Accept": "application/vnd.github+json"},
+            verify=ca_bundle,
+        )
+    except Exception:
+        # Fallback sem verificação SSL (ambientes com CA bundle ausente)
+        resp = requests.get(
+            API_URL,
+            timeout=TIMEOUT,
+            headers={"Accept": "application/vnd.github+json"},
+            verify=False,
+        )
     resp.raise_for_status()
     data = resp.json()
 

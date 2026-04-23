@@ -18,15 +18,22 @@ from .components.loading import setup_loading
 def _check_update_thread(page: ft.Page) -> None:
     """Roda em thread daemon. Verifica atualização sem bloquear o startup."""
     import time
+    import tempfile
+    import traceback
     time.sleep(3)  # aguarda a UI terminar de renderizar
     try:
         from .updater import check_for_update
         result = check_for_update()
         if result is not None:
             latest_version, download_url = result
-            page.run_thread(lambda: _show_update_prompt(page, latest_version, download_url))
+            _show_update_prompt(page, latest_version, download_url)
     except Exception:
-        pass  # sem internet / erro silencioso no startup
+        try:
+            log = tempfile.gettempdir() + "/encomendas_update.log"
+            with open(log, "w", encoding="utf-8") as f:
+                f.write(traceback.format_exc())
+        except Exception:
+            pass
 
 
 def _show_update_prompt(page: ft.Page, latest_version: str, download_url: str) -> None:
@@ -204,7 +211,7 @@ async def main(page: ft.Page) -> None:
             update_btn_ref.disabled = False
             update_btn_ref.icon = ft.Icons.SYSTEM_UPDATE_OUTLINED
             if update_found:
-                page.run_thread(lambda: _show_update_prompt(page, latest_version, download_url))  # type: ignore[possibly-undefined]
+                _show_update_prompt(page, latest_version, download_url)  # type: ignore[possibly-undefined]
             else:
                 page.snack_bar = ft.SnackBar(
                     ft.Text(msg),
