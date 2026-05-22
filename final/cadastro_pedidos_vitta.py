@@ -214,7 +214,7 @@ def _acessar_novo_pedido(page: Page) -> None:
 
 def _selecionar_cliente(page: Page, nome_cliente: str) -> None:
     logger.info("Selecionando cliente '%s'.", nome_cliente)
-    buscar_btn = page.get_by_role("button", name="")
+    buscar_btn = page.locator("#pesqCli")
     buscar_btn.wait_for()
     buscar_btn.click()
 
@@ -225,7 +225,7 @@ def _selecionar_cliente(page: Page, nome_cliente: str) -> None:
     filtro.click()
     filtro.fill(nome_cliente)
 
-    confirmar_btn = frame.get_by_role("button", name="")
+    confirmar_btn = frame.locator('button.btn-danger:has(i.glyphicon-search), #btnPesquisar, button[btnaction="search"]').first
     confirmar_btn.wait_for()
     confirmar_btn.click()
 
@@ -279,7 +279,7 @@ def _upload_arquivo(page: Page, frame: Frame, label: str, file_path: Path) -> No
 
 
 def _salvar_e_criar_novo(frame: Frame) -> None:
-    salvar_btn = frame.get_by_role("button", name=" Salvar e Criar Novo")
+    salvar_btn = frame.locator('button[btnaction="save"][btnwindow="new"]')
     salvar_btn.wait_for()
     salvar_btn.click()
 
@@ -360,7 +360,7 @@ def _finalizar_operacao(page: Page, ui_confirm=None) -> bool:
 
         if frame is not None:
             try:
-                fechar_btn = frame.get_by_role("button", name=" Fechar")
+                fechar_btn = frame.locator('button[btnaction="close"]')
                 fechar_btn.wait_for()
                 fechar_btn.click()
                 with contextlib.suppress(PlaywrightTimeoutError):
@@ -371,7 +371,7 @@ def _finalizar_operacao(page: Page, ui_confirm=None) -> bool:
                 logger.exception("Falha ao acionar botao 'Fechar': %s", exc)
 
         try:
-            salvar_btn = page.get_by_role("button", name=" Salvar")
+            salvar_btn = page.locator("#salvar")
             salvar_btn.wait_for()
             salvar_btn.click()
             with contextlib.suppress(PlaywrightTimeoutError):

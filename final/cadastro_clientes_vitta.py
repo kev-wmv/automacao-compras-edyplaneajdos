@@ -177,12 +177,12 @@ def cadastrar_cliente_vitta(
             frame.get_by_role("textbox", name=re.compile("Email", re.I)).fill(email)
             frame.get_by_role("textbox", name=re.compile("CEP", re.I)).fill(cep)
             frame = page.frame(name="janela")
-            frame.get_by_role("button", name="").click()
+            frame.locator("#pesqCli, button.btn-danger:has(i.glyphicon-search)").first.click()
             frame.get_by_role("textbox", name=re.compile("CEP", re.I)).press(" ")  # Forcar validacao do CEP
             frame.get_by_role("button", name=re.compile("Fechar", re.I))
             frame.get_by_role("textbox", name=re.compile("Nº", re.I)).fill(numero or "S/N")
             frame.get_by_role("textbox", name=re.compile("Complemento", re.I)).fill(complemento)
-            frame.get_by_role("button", name=" Salvar", exact=True).click()
+            frame.locator("#salvar, button[btnaction=\"save\"]").first.click()
 
             # Verificar novamente apos o Salvar
             try:
