@@ -169,6 +169,15 @@ def _find_xml_and_promob_files(base_dir: Path) -> List[Tuple[Path, Optional[Path
 
     pairs: List[Tuple[Path, Optional[Path]]] = []
     for xml_path in xml_paths:
+        # Convencao nova: PROMOB com o mesmo stem na mesma pasta do XML
+        # (ex: vitta/0000AA #02 MARCENARIA.xml -> vitta/0000AA #02 MARCENARIA.promob)
+        sibling = xml_path.with_suffix(".promob")
+        if sibling.is_file():
+            pairs.append((xml_path, sibling))
+            logger.info("PROMOB pareado por sibling: %s -> %s", xml_path.name, sibling.name)
+            continue
+
+        # Fallback legacy: lookup por codigo em PROMOBS ENCOMENDADOS
         try:
             code = _extract_codigo_from_xml(xml_path)
         except ValueError:
