@@ -225,7 +225,7 @@ def _selecionar_cliente(page: Page, nome_cliente: str) -> None:
     filtro.click()
     filtro.fill(nome_cliente)
 
-    confirmar_btn = frame.locator('button.btn-danger:has(i.glyphicon-search), #btnPesquisar, button[btnaction="search"]').first
+    confirmar_btn = frame.locator("#btnPesqCliente")
     confirmar_btn.wait_for()
     confirmar_btn.click()
 

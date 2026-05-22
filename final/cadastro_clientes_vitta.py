@@ -177,7 +177,7 @@ def cadastrar_cliente_vitta(
             frame.get_by_role("textbox", name=re.compile("Email", re.I)).fill(email)
             frame.get_by_role("textbox", name=re.compile("CEP", re.I)).fill(cep)
             frame = page.frame(name="janela")
-            frame.locator("#pesqCli, button.btn-danger:has(i.glyphicon-search)").first.click()
+            frame.locator("#searchCepFat").click()
             frame.get_by_role("textbox", name=re.compile("CEP", re.I)).press(" ")  # Forcar validacao do CEP
             frame.get_by_role("button", name=re.compile("Fechar", re.I))
             frame.get_by_role("textbox", name=re.compile("Nº", re.I)).fill(numero or "S/N")
