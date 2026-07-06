@@ -162,6 +162,12 @@ class AppController:
             creds = cfg.stores.get(store, {"username": "", "password": ""})
             action = s.action
 
+            # Lojas com cliente_fixo (ex.: Showroom) sempre usam o mesmo
+            # cliente no portal, independente do que o OCR extraiu.
+            cliente_fixo = str(creds.get("cliente_fixo", "")).strip()
+            if cliente_fixo:
+                ocr_snap["cliente"] = cliente_fixo
+
             if action == "pedidos":
                 if not s.txt_files:
                     self._warn("Nenhum arquivo .txt identificado na pasta selecionada.")

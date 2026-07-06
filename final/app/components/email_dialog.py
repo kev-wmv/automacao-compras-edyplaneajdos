@@ -381,6 +381,9 @@ def show_email_dialog(ctrl: AppController) -> None:
         loja_nome = cfg.stores.get(s.selected_store, {}).get("loja_email", s.selected_store)
         client_code = extract_client_code(s.folder_path) if s.folder_path else ""
         ocr_snap = dict(s.ocr_results)
+        cliente_fixo = str(cfg.stores.get(s.selected_store, {}).get("cliente_fixo", "")).strip()
+        if cliente_fixo:
+            ocr_snap["cliente"] = cliente_fixo
         emp_snap = dict(cfg.empresa_info)
 
         smtp_snap = dict(cfg.email_smtp)

@@ -23,6 +23,7 @@ STORES = [
     "Lar center",
     "Aricanduva",
     "Pacaembu",
+    "Showroom",
 ]
 OCR_FIELDS: List[Dict[str, Any]] = [
     {"key": "cliente", "label": "NOME CLIENTE", "config_key": "NOME CLIENTE", "required": True},
@@ -163,6 +164,7 @@ def _default_store_block() -> Dict[str, Dict[str, str]]:
             "username": "",
             "password": "",
             "loja_email": store,
+            "cliente_fixo": "",
         }
         for store in STORES
     }
@@ -419,14 +421,18 @@ def _normalize_stores_section(data: Mapping[str, Any]) -> Dict[str, Dict[str, st
         username = creds.get("username", "")
         password = creds.get("password", "")
         loja_email = creds.get("loja_email", store)
+        cliente_fixo = creds.get("cliente_fixo", "")
         if not isinstance(username, str) or not isinstance(password, str):
             raise ValueError(f"Credenciais invalidas para {store} em {CONFIG_FILENAME}.")
         if not isinstance(loja_email, str):
             loja_email = store
+        if not isinstance(cliente_fixo, str):
+            cliente_fixo = ""
         stores_section[store] = {
             "username": username,
             "password": password,
             "loja_email": loja_email,
+            "cliente_fixo": cliente_fixo,
         }
     return stores_section
 
