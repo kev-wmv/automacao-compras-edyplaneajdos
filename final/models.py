@@ -52,6 +52,8 @@ class AppState:
     vitta_action: str = "clientes"
     comprador: str = ""
     headless: bool = True
+    # Loja dona do pedido quando a loja selecionada é um showroom (cliente_fixo)
+    showroom_loja: str = ""
 
     # Resultado do scan de pasta
     folder_path: Optional[Path] = None

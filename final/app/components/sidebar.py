@@ -68,6 +68,9 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         expand=True,
     )
 
+    def _has_cliente_fixo(store: str) -> bool:
+        return bool(str(ctrl.cfg.stores.get(store, {}).get("cliente_fixo", "")).strip())
+
     loja_dd = ft.Dropdown(
         label="Loja",
         value=ctrl.state.selected_store,
@@ -79,8 +82,31 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         label_style=ft.TextStyle(size=11, color=C_ON_SURFACE_VARIANT),
         border_radius=6,
         expand=True,
-        on_select=lambda e: setattr(ctrl.state, "selected_store", e.control.value),
     )
+
+    # Loja dona do pedido quando a loja selecionada é um showroom (cliente_fixo)
+    showroom_dd = ft.Dropdown(
+        label="Showroom de",
+        value=ctrl.state.showroom_loja or None,
+        options=[ft.dropdown.Option(key=s, text=s)
+                 for s in STORES if not _has_cliente_fixo(s)],
+        text_size=13,
+        border_color=C_OUTLINE,
+        focused_border_color=ACCENT,
+        color=C_ON_SURFACE,
+        label_style=ft.TextStyle(size=11, color=C_ON_SURFACE_VARIANT),
+        border_radius=6,
+        expand=True,
+        visible=_has_cliente_fixo(ctrl.state.selected_store),
+        on_select=lambda e: setattr(ctrl.state, "showroom_loja", e.control.value),
+    )
+
+    def on_loja_select(e: ft.ControlEvent) -> None:
+        ctrl.state.selected_store = e.control.value
+        showroom_dd.visible = _has_cliente_fixo(e.control.value)
+        ctrl.page.update()
+
+    loja_dd.on_select = on_loja_select
 
     # ── Seções de ação ────────────────────────────────────────────────────────
     finger_action = ft.RadioGroup(
@@ -95,7 +121,6 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
     )
 
     finger_section = ft.Column([
-        loja_dd,
         _section_label("AÇÃO"),
         finger_action,
     ], spacing=8, visible=True)
@@ -121,7 +146,6 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         is_finger = value == "Finger"
         finger_section.visible = is_finger
         vitta_section.visible = not is_finger
-        loja_dd.disabled = not is_finger
         fabricante_dd.value = value
 
     def on_fabricante_change(e: ft.ControlEvent) -> None:
@@ -277,6 +301,8 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         _section_label("CONFIGURAÇÃO", ft.Icons.TUNE_OUTLINED),
         comprador_field,
         fabricante_dd,
+        loja_dd,
+        showroom_dd,
 
         ft.Divider(height=1, color=C_OUTLINE_VARIANT),
 

@@ -381,10 +381,27 @@ def show_email_dialog(ctrl: AppController) -> None:
         loja_nome = cfg.stores.get(s.selected_store, {}).get("loja_email", s.selected_store)
         client_code = extract_client_code(s.folder_path) if s.folder_path else ""
         ocr_snap = dict(s.ocr_results)
+        emp_snap = dict(cfg.empresa_info)
         cliente_fixo = str(cfg.stores.get(s.selected_store, {}).get("cliente_fixo", "")).strip()
         if cliente_fixo:
+            # Loja com cliente fixo (ex.: Showroom): o email sai com os dados
+            # cadastrais da Edy (empresa_info), não com o que o OCR extraiu.
             ocr_snap["cliente"] = cliente_fixo
-        emp_snap = dict(cfg.empresa_info)
+            for ocr_key, emp_key in (
+                ("cpf_cnpj", "cnpj"),
+                ("endereco_entrega", "endereco"),
+                ("bairro", "bairro"),
+                ("cidade", "cidade"),
+                ("estado", "estado"),
+                ("cep", "cep"),
+                ("telefone", "telefone"),
+            ):
+                ocr_snap[ocr_key] = str(emp_snap.get(emp_key, "")).strip()
+            ocr_snap["numero"] = ""
+            ocr_snap["complemento"] = ""
+            # Mesmo identificador que vai no Pd.Consumidor do portal Finger
+            if s.showroom_loja.strip():
+                ocr_snap["numero_contrato"] = f"SHOWROOM {s.showroom_loja.strip().upper()}"
 
         smtp_snap = dict(cfg.email_smtp)
         smtp_snap["destino_fixo"] = to_field.value.strip()

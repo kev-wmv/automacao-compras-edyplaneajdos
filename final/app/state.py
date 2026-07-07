@@ -97,6 +97,10 @@ class AppController:
 
         self.notify()
         self.page.update()
+        if result.contract_pdf_path is None:
+            self.show_snackbar(
+                "Nenhum PDF de contrato encontrado na pasta — dados do cliente nao extraidos."
+            )
 
     def do_refresh_folder(self) -> None:
         """Atualiza a lista de arquivos da pasta selecionada sem rerodar OCR."""
@@ -142,8 +146,15 @@ class AppController:
         s = self.state
         cfg = self.cfg
 
+        # Lojas com cliente_fixo (ex.: Showroom) rodam sem contrato/OCR —
+        # os pedidos saem sempre em nome do cliente fixo (Edy), identificados
+        # pela loja dona do showroom (s.showroom_loja).
+        store_cfg = cfg.stores.get(s.selected_store, {})
+        cliente_fixo = str(store_cfg.get("cliente_fixo", "")).strip()
+        showroom_loja = s.showroom_loja.strip() if cliente_fixo else ""
+
         # Fix 2: chamar on_done em TODAS as saídas de validação
-        if s.contract_pdf_path is None:
+        if s.contract_pdf_path is None and not cliente_fixo:
             self._warn("Selecione e processe um contrato antes de continuar.")
             on_done()
             return
@@ -156,17 +167,14 @@ class AppController:
         cancel_event = self._cancel_event
 
         ocr_snap = dict(s.ocr_results)
+        # cliente_fixo sempre sobrepõe o que o OCR extraiu (ou a ausência dele)
+        if cliente_fixo:
+            ocr_snap["cliente"] = cliente_fixo
 
         if s.fabricante.lower() == "finger":
             store = s.selected_store
             creds = cfg.stores.get(store, {"username": "", "password": ""})
             action = s.action
-
-            # Lojas com cliente_fixo (ex.: Showroom) sempre usam o mesmo
-            # cliente no portal, independente do que o OCR extraiu.
-            cliente_fixo = str(creds.get("cliente_fixo", "")).strip()
-            if cliente_fixo:
-                ocr_snap["cliente"] = cliente_fixo
 
             if action == "pedidos":
                 if not s.txt_files:
@@ -181,7 +189,14 @@ class AppController:
                     self._warn("Informe o comprador antes de cadastrar pedidos.")
                     on_done()
                     return
-                if not ocr_snap.get("numero_contrato", "").strip():
+                if cliente_fixo:
+                    if not showroom_loja:
+                        self._warn("Selecione de qual loja e o showroom.")
+                        on_done()
+                        return
+                    # Pd.Consumidor identifica a loja dona do showroom no portal
+                    ocr_snap["numero_contrato"] = f"SHOWROOM {showroom_loja.upper()}"
+                elif not ocr_snap.get("numero_contrato", "").strip():
                     self._warn("Numero de contrato nao encontrado no OCR.")
                     on_done()
                     return
@@ -246,7 +261,19 @@ class AppController:
                     self._warn("Informe o nome do comprador.")
                     on_done()
                     return
-                cliente_nome = " ".join(s.ocr_results.get("cliente", "").strip().split())
+                if cliente_fixo:
+                    if not showroom_loja:
+                        self._warn("Selecione de qual loja e o showroom.")
+                        on_done()
+                        return
+                    # Na Vitta o cliente fixo tem razão social própria e o
+                    # showroom é identificado no campo do comprador
+                    cliente_nome = str(
+                        store_cfg.get("cliente_fixo_vitta", "")
+                    ).strip() or cliente_fixo
+                    comprador = f"{comprador} - SHOWROOM {showroom_loja.upper()}"
+                else:
+                    cliente_nome = " ".join(ocr_snap.get("cliente", "").strip().split())
                 if not cliente_nome:
                     self._warn("Nome do cliente nao identificado pelo OCR.")
                     on_done()

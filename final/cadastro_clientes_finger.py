@@ -165,6 +165,7 @@ def _default_store_block() -> Dict[str, Dict[str, str]]:
             "password": "",
             "loja_email": store,
             "cliente_fixo": "",
+            "cliente_fixo_vitta": "",
         }
         for store in STORES
     }
@@ -422,17 +423,21 @@ def _normalize_stores_section(data: Mapping[str, Any]) -> Dict[str, Dict[str, st
         password = creds.get("password", "")
         loja_email = creds.get("loja_email", store)
         cliente_fixo = creds.get("cliente_fixo", "")
+        cliente_fixo_vitta = creds.get("cliente_fixo_vitta", "")
         if not isinstance(username, str) or not isinstance(password, str):
             raise ValueError(f"Credenciais invalidas para {store} em {CONFIG_FILENAME}.")
         if not isinstance(loja_email, str):
             loja_email = store
         if not isinstance(cliente_fixo, str):
             cliente_fixo = ""
+        if not isinstance(cliente_fixo_vitta, str):
+            cliente_fixo_vitta = ""
         stores_section[store] = {
             "username": username,
             "password": password,
             "loja_email": loja_email,
             "cliente_fixo": cliente_fixo,
+            "cliente_fixo_vitta": cliente_fixo_vitta,
         }
     return stores_section
 
@@ -543,10 +548,14 @@ def _normalize_empresa_info_section(data: Mapping[str, Any]) -> Dict[str, str]:
     raw_empresa = data.get("empresa_info")
     if not isinstance(raw_empresa, Mapping):
         return _default_empresa_info_block()
-    return {
+    normalized = {
         "codigo": str(raw_empresa.get("codigo", _default_empresa_info_block()["codigo"])),
         "nome": str(raw_empresa.get("nome", _default_empresa_info_block()["nome"])),
     }
+    # Dados cadastrais da empresa usados no email de lojas com cliente_fixo
+    for key in ("cnpj", "endereco", "bairro", "cidade", "estado", "cep", "telefone"):
+        normalized[key] = str(raw_empresa.get(key, "")).strip()
+    return normalized
 
 
 def _normalize_fornecedores_email_section(data: Mapping[str, Any]) -> Dict[str, List[str]]:

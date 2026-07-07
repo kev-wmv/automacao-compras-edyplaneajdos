@@ -84,7 +84,13 @@ def process_folder(folder_path: Path, cfg: ConfigData) -> FolderScanResult:
     if not folder_path.is_dir():
         raise NotADirectoryError("Selecione uma pasta válida.")
 
-    pdf_path, results = extract_contrato_data(folder_path, cfg.ocr)
+    # Pasta sem PDF de contrato (ex.: pedidos do Showroom em nome da Edy)
+    # segue sem OCR — a exigência de contrato fica em do_start_process,
+    # que só libera lojas com cliente_fixo.
+    try:
+        pdf_path, results = extract_contrato_data(folder_path, cfg.ocr)
+    except FileNotFoundError:
+        pdf_path, results = None, {}
     file_scan = scan_folder_files(folder_path, cfg)
 
     ocr_results = {key: results.get(key, "") for key in OCR_FIELD_KEYS}
