@@ -29,6 +29,7 @@ def build_project_card(ctrl: AppController) -> ft.Container:
 
     count_text = ft.Text("Nenhum arquivo identificado", size=11,
                          color=C_ON_SURFACE_VARIANT)
+    count_row = ft.Container(content=count_text, padding=ft.padding.only(bottom=2))
 
     refresh_btn = ft.OutlinedButton(
         content=ft.Row([
@@ -112,6 +113,24 @@ def build_project_card(ctrl: AppController) -> ft.Container:
             )
             list_view.controls.append(tile)
 
+        is_empty = not list_view.controls
+        # Quando vazio, o próprio empty state comunica — evita texto redundante em cima
+        count_row.visible = not is_empty
+        if is_empty:
+            list_view.controls.append(ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.Icons.FOLDER_OPEN_OUTLINED, size=30, color=C_OUTLINE),
+                    ft.Text("Nenhum arquivo ainda", size=12,
+                            weight=ft.FontWeight.W_500, color=C_ON_SURFACE_VARIANT),
+                    ft.Text(f"Arquivos {suffix} e pedidos aparecem aqui\n"
+                            "depois de selecionar a pasta.",
+                            size=10, color=C_ON_SURFACE_VARIANT,
+                            text_align=ft.TextAlign.CENTER),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+                alignment=ft.Alignment(0, 0),
+                padding=ft.padding.symmetric(vertical=36),
+            ))
+
         parts = []
         if unique:
             parts.append(f"{len(unique)} arquivo(s) {suffix}")
@@ -140,7 +159,7 @@ def build_project_card(ctrl: AppController) -> ft.Container:
     card = ft.Container(
         content=ft.Column([
             header,
-            ft.Container(content=count_text, padding=ft.padding.only(bottom=2)),
+            count_row,
             list_view,
         ], spacing=8),
         bgcolor=C_SURFACE_CONTAINER,

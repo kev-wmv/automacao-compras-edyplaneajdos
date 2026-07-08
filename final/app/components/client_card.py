@@ -44,7 +44,26 @@ def build_client_card(ctrl: AppController) -> ft.Container:
             row_fields.append(_make_field(OCR_FIELD_KEYS[i + 1]))
         rows.append(ft.Row(row_fields, spacing=12))
 
+    grid = ft.Column(rows, spacing=8, visible=False)
+
+    empty_state = ft.Container(
+        content=ft.Column([
+            ft.Icon(ft.Icons.BADGE_OUTLINED, size=32, color=C_OUTLINE),
+            ft.Text("Dados do cliente", size=13, weight=ft.FontWeight.W_600,
+                    color=C_ON_SURFACE_VARIANT),
+            ft.Text("Selecione a pasta do projeto para preencher\n"
+                    "os campos automaticamente pelo contrato.",
+                    size=11, color=C_ON_SURFACE_VARIANT,
+                    text_align=ft.TextAlign.CENTER),
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=6),
+        alignment=ft.Alignment(0, 0),
+        padding=ft.padding.symmetric(vertical=44),
+    )
+
     def on_state_change() -> None:
+        has_folder = ctrl.state.folder_path is not None
+        grid.visible = has_folder
+        empty_state.visible = not has_folder
         for key, tf in fields.items():
             new_val = ctrl.state.ocr_results.get(key, "")
             if tf.value != new_val:
@@ -61,7 +80,7 @@ def build_client_card(ctrl: AppController) -> ft.Container:
     ], spacing=6)
 
     card = ft.Container(
-        content=ft.Column([header, *rows], spacing=8),
+        content=ft.Column([header, grid, empty_state], spacing=8),
         bgcolor=C_SURFACE_CONTAINER,
         border=ft.border.all(1, C_OUTLINE_VARIANT),
         border_radius=12,

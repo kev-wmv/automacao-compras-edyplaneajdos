@@ -4,7 +4,7 @@ from __future__ import annotations
 import flet as ft
 
 from ..theme import (
-    ACCENT, ACCENT_HOV, ACCENT_MUTED,
+    ACCENT, ACCENT_HOV, ACCENT_MUTED, WARNING,
     SIDE_W, SIDEBAR_SHADOW,
     C_SURFACE_CONTAINER, C_ON_SURFACE, C_ON_SURFACE_VARIANT,
     C_PRIMARY, C_ON_PRIMARY, C_OUTLINE, C_OUTLINE_VARIANT,
@@ -49,7 +49,8 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         label_style=ft.TextStyle(size=11, color=C_ON_SURFACE_VARIANT),
         border_radius=6,
         expand=True,
-        on_change=lambda e: setattr(ctrl.state, "comprador", e.control.value),
+        on_change=lambda e: (setattr(ctrl.state, "comprador", e.control.value),
+                             _refresh_validity()),
     )
 
     fabricante_dd = ft.Dropdown(
@@ -98,12 +99,14 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         border_radius=6,
         expand=True,
         visible=_has_cliente_fixo(ctrl.state.selected_store),
-        on_select=lambda e: setattr(ctrl.state, "showroom_loja", e.control.value),
+        on_select=lambda e: (setattr(ctrl.state, "showroom_loja", e.control.value),
+                             _refresh_validity()),
     )
 
     def on_loja_select(e: ft.ControlEvent) -> None:
         ctrl.state.selected_store = e.control.value
         showroom_dd.visible = _has_cliente_fixo(e.control.value)
+        _refresh_validity()
         ctrl.page.update()
 
     loja_dd.on_select = on_loja_select
@@ -117,7 +120,8 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
             ft.Radio(value="pedidos", label="Cadastrar pedidos",
                      label_style=ft.TextStyle(size=12, color=C_ON_SURFACE)),
         ], spacing=0),
-        on_change=lambda e: setattr(ctrl.state, "action", e.control.value),
+        on_change=lambda e: (setattr(ctrl.state, "action", e.control.value),
+                             _refresh_validity()),
     )
 
     finger_section = ft.Column([
@@ -133,7 +137,8 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
             ft.Radio(value="pedidos", label="Cadastrar pedidos",
                      label_style=ft.TextStyle(size=12, color=C_ON_SURFACE)),
         ], spacing=0),
-        on_change=lambda e: setattr(ctrl.state, "vitta_action", e.control.value),
+        on_change=lambda e: (setattr(ctrl.state, "vitta_action", e.control.value),
+                             _refresh_validity()),
     )
 
     vitta_section = ft.Column([
@@ -151,6 +156,7 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
     def on_fabricante_change(e: ft.ControlEvent) -> None:
         ctrl.state.fabricante = e.control.value
         _apply_fabricante(e.control.value)
+        _refresh_validity()
         ctrl.notify()
         ctrl.page.update()
 
@@ -160,6 +166,10 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         new_fab = ctrl.state.fabricante
         if fabricante_dd.value != new_fab:
             _apply_fabricante(new_fab)
+        # comprador pode ter sido preenchido/alterado por outro fluxo
+        if comprador_field.value != ctrl.state.comprador:
+            comprador_field.value = ctrl.state.comprador
+        _refresh_validity()
 
     ctrl.subscribe(on_state_change)
 
@@ -189,13 +199,36 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         ),
     )
 
+    # Legenda do que falta para habilitar o processo
+    requisito_text = ft.Text(
+        "", size=10, color=WARNING, text_align=ft.TextAlign.CENTER, visible=False,
+    )
+
+    def _validity_reason() -> str:
+        s = ctrl.state
+        if _has_cliente_fixo(s.selected_store) and not (s.showroom_loja or "").strip():
+            return "Selecione de qual loja é o showroom"
+        action = s.action if s.fabricante == "Finger" else s.vitta_action
+        if action == "pedidos" and not (s.comprador or "").strip():
+            return "Informe o comprador para cadastrar pedidos"
+        return ""
+
+    def _refresh_validity() -> None:
+        reason = _validity_reason()
+        start_btn.disabled = bool(reason)
+        requisito_text.value = reason
+        requisito_text.visible = bool(reason)
+        try:
+            ctrl.page.update()
+        except Exception:
+            pass
+
     def on_start(e: ft.ControlEvent) -> None:
         start_btn.disabled = True
         ctrl.page.update()
 
         def on_done() -> None:
-            start_btn.disabled = False
-            ctrl.page.update()
+            _refresh_validity()  # reabilita só se os requisitos estiverem ok
 
         ctrl.do_start_process(on_done)
 
@@ -330,6 +363,7 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         ft.Divider(height=1, color=C_OUTLINE_VARIANT),
         headless_cb,
         start_btn,
+        requisito_text,
         send_pdf_btn,
         ft.Row([log_toggle_btn, log_clear_btn, update_check_btn, admin_btn], spacing=4,
                alignment=ft.MainAxisAlignment.CENTER),
@@ -349,5 +383,10 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
     sidebar.send_pdf_btn = send_pdf_btn  # type: ignore[attr-defined]
     sidebar.update_check_btn = update_check_btn  # type: ignore[attr-defined]
     sidebar.admin_btn = admin_btn  # type: ignore[attr-defined]
+
+    # Estado inicial da validação (sem page.update — página ainda não montada)
+    start_btn.disabled = bool(_validity_reason())
+    requisito_text.value = _validity_reason()
+    requisito_text.visible = bool(_validity_reason())
 
     return sidebar

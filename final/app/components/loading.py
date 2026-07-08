@@ -5,8 +5,16 @@ from typing import Optional
 
 import flet as ft
 
-from ..theme import BG_CARD, BORDER, TEXT, TEXT_DIM, ACCENT, ACCENT_SOFT, ACCENT_MUTED, ERROR
+from ..theme import (
+    ACCENT, ACCENT_SOFT, ERROR,
+    C_ON_SURFACE, C_ON_SURFACE_VARIANT, C_OUTLINE_VARIANT,
+)
 from ..state import AppController
+
+# Tokens semânticos (resolvem pela cor do tema ativo — legíveis em light e dark)
+TEXT = C_ON_SURFACE
+TEXT_DIM = C_ON_SURFACE_VARIANT
+BORDER = C_OUTLINE_VARIANT
 
 
 def setup_loading(ctrl: AppController) -> None:
