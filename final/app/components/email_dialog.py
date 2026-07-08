@@ -53,6 +53,8 @@ def _order_row(
     o: dict,
     cb: ft.Checkbox,
     cc_field: ft.TextField,
+    edit_btn: ft.Control = None,
+    edit_panel: ft.Control = None,
 ) -> ft.Container:
     """Cria uma linha de pedido estilizada como card inline."""
     icon_name = ft.Icons.MARK_EMAIL_READ_OUTLINED if o["status"] == "enviado" \
@@ -63,26 +65,35 @@ def _order_row(
         else ACCENT if o.get("can_send") \
         else WARNING
 
+    header_controls = [
+        cb,
+        ft.Icon(icon_name, size=18, color=icon_color),
+        ft.Text(
+            o["supplier"],
+            size=12,
+            weight=ft.FontWeight.W_500,
+            color=TEXT,
+            expand=True,
+        ),
+        _status_badge(o["status"], o.get("can_send", False)),
+    ]
+    if edit_btn is not None:
+        header_controls.append(edit_btn)
+
+    column_controls = [
+        ft.Row(header_controls, spacing=10,
+               vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        ft.Row([
+            ft.Container(width=28),
+            ft.Text("CC:", size=10, color=TEXT_DIM, width=22),
+            cc_field,
+        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+    ]
+    if edit_panel is not None:
+        column_controls.append(edit_panel)
+
     return ft.Container(
-        content=ft.Column([
-            ft.Row([
-                cb,
-                ft.Icon(icon_name, size=18, color=icon_color),
-                ft.Text(
-                    o["supplier"],
-                    size=12,
-                    weight=ft.FontWeight.W_500,
-                    color=TEXT,
-                    expand=True,
-                ),
-                _status_badge(o["status"], o.get("can_send", False)),
-            ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ft.Row([
-                ft.Container(width=28),
-                ft.Text("CC:", size=10, color=TEXT_DIM, width=22),
-                cc_field,
-            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-        ], spacing=4, tight=True),
+        content=ft.Column(column_controls, spacing=4, tight=True),
         bgcolor=BG_ENTRY,
         border_radius=8,
         padding=ft.padding.symmetric(horizontal=12, vertical=8),
@@ -114,6 +125,35 @@ def show_email_dialog(ctrl: AppController) -> None:
 
     orders = updated
     s.pdf_orders = updated
+
+    # ── Dados compartilhados do e-mail (mesma lógica usada no envio) ──────────
+    # Computados aqui para pré-preencher o assunto/corpo editáveis de cada pedido.
+    loja_nome = cfg.stores.get(s.selected_store, {}).get("loja_email", s.selected_store)
+    client_code = extract_client_code(s.folder_path) if s.folder_path else ""
+    ocr_snap = dict(s.ocr_results)
+    emp_snap = dict(cfg.empresa_info)
+    cliente_fixo = str(cfg.stores.get(s.selected_store, {}).get("cliente_fixo", "")).strip()
+    if cliente_fixo:
+        # Loja com cliente fixo (ex.: Showroom): e-mail com dados da Edy (empresa_info)
+        ocr_snap["cliente"] = cliente_fixo
+        for ocr_key, emp_key in (
+            ("cpf_cnpj", "cnpj"), ("endereco_entrega", "endereco"), ("bairro", "bairro"),
+            ("cidade", "cidade"), ("estado", "estado"), ("cep", "cep"), ("telefone", "telefone"),
+        ):
+            ocr_snap[ocr_key] = str(emp_snap.get(emp_key, "")).strip()
+        ocr_snap["numero"] = ""
+        ocr_snap["complemento"] = ""
+        if s.showroom_loja.strip():
+            ocr_snap["numero_contrato"] = f"SHOWROOM {s.showroom_loja.strip().upper()}"
+
+    def _default_subject() -> str:
+        return build_email_subject(
+            client_code, ocr_snap.get("cliente", ""), ocr_snap.get("numero_contrato", ""))
+
+    def _default_body(o: dict) -> str:
+        return build_email_body(
+            o["supplier"], ocr_snap, client_code, emp_snap, loja_nome,
+            is_especial=o.get("is_especial", False))
 
     # ── Header ────────────────────────────────────────────────────────────────
     header = ft.Container(
@@ -175,6 +215,8 @@ def show_email_dialog(ctrl: AppController) -> None:
     # ── Lista de pedidos ──────────────────────────────────────────────────────
     checkboxes: Dict[str, ft.Checkbox] = {}
     cc_fields: Dict[str, ft.TextField] = {}
+    subject_fields: Dict[str, ft.TextField] = {}
+    body_fields: Dict[str, ft.TextField] = {}
     order_controls: List[ft.Container] = []
 
     def _make_cc_handler(order, cb_ref):
@@ -224,7 +266,59 @@ def show_email_dialog(ctrl: AppController) -> None:
             on_change=_make_cc_handler(o, cb),
         )
         cc_fields[o["id"]] = cc_field
-        order_controls.append(_order_row(o, cb, cc_field))
+
+        # Campos de assunto/corpo editáveis (pré-preenchidos), expansíveis por pedido
+        edit_btn = None
+        edit_panel = None
+        if not is_sent:
+            subject_field = ft.TextField(
+                label="Assunto",
+                value=_default_subject(),
+                text_size=11,
+                border_color=C_OUTLINE_VARIANT,
+                focused_border_color=ACCENT,
+                color=C_ON_SURFACE,
+                label_style=ft.TextStyle(size=10, color=TEXT_DIM),
+                content_padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                border_radius=6,
+                dense=True,
+            )
+            body_field = ft.TextField(
+                label="Corpo do e-mail",
+                value=_default_body(o),
+                text_size=11,
+                multiline=True,
+                min_lines=6,
+                max_lines=14,
+                border_color=C_OUTLINE_VARIANT,
+                focused_border_color=ACCENT,
+                color=C_ON_SURFACE,
+                label_style=ft.TextStyle(size=10, color=TEXT_DIM),
+                content_padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                border_radius=6,
+            )
+            subject_fields[o["id"]] = subject_field
+            body_fields[o["id"]] = body_field
+
+            edit_panel = ft.Container(
+                content=ft.Column([subject_field, body_field], spacing=6),
+                padding=ft.padding.only(left=28, top=6),
+                visible=False,
+            )
+
+            def _toggle_edit(_, panel=edit_panel, btn=None):
+                panel.visible = not panel.visible
+                ctrl.page.update()
+
+            edit_btn = ft.IconButton(
+                icon=ft.Icons.EDIT_NOTE_OUTLINED,
+                icon_size=18,
+                icon_color=TEXT_DIM,
+                tooltip="Ver / editar o texto do e-mail",
+                on_click=_toggle_edit,
+            )
+
+        order_controls.append(_order_row(o, cb, cc_field, edit_btn, edit_panel))
 
     order_list = ft.ListView(
         controls=order_controls,
@@ -378,36 +472,15 @@ def show_email_dialog(ctrl: AppController) -> None:
         progress_text.value = f"Preparando envio de {len(selecionados)} pedido(s)..."
         ctrl.page.update()
 
-        loja_nome = cfg.stores.get(s.selected_store, {}).get("loja_email", s.selected_store)
-        client_code = extract_client_code(s.folder_path) if s.folder_path else ""
-        ocr_snap = dict(s.ocr_results)
-        emp_snap = dict(cfg.empresa_info)
-        cliente_fixo = str(cfg.stores.get(s.selected_store, {}).get("cliente_fixo", "")).strip()
-        if cliente_fixo:
-            # Loja com cliente fixo (ex.: Showroom): o email sai com os dados
-            # cadastrais da Edy (empresa_info), não com o que o OCR extraiu.
-            ocr_snap["cliente"] = cliente_fixo
-            for ocr_key, emp_key in (
-                ("cpf_cnpj", "cnpj"),
-                ("endereco_entrega", "endereco"),
-                ("bairro", "bairro"),
-                ("cidade", "cidade"),
-                ("estado", "estado"),
-                ("cep", "cep"),
-                ("telefone", "telefone"),
-            ):
-                ocr_snap[ocr_key] = str(emp_snap.get(emp_key, "")).strip()
-            ocr_snap["numero"] = ""
-            ocr_snap["complemento"] = ""
-            # Mesmo identificador que vai no Pd.Consumidor do portal Finger
-            if s.showroom_loja.strip():
-                ocr_snap["numero_contrato"] = f"SHOWROOM {s.showroom_loja.strip().upper()}"
-
         smtp_snap = dict(cfg.email_smtp)
         smtp_snap["destino_fixo"] = to_field.value.strip()
 
-        # Snapshot dos CCs editados antes de entrar na thread
+        # Snapshots (CC + assunto/corpo, já com edições do usuário) antes da thread
         cc_snap: Dict[str, List[str]] = {o["id"]: _cc_for(o) for o in selecionados}
+        subj_snap: Dict[str, str] = {
+            o["id"]: subject_fields[o["id"]].value for o in selecionados}
+        body_snap: Dict[str, str] = {
+            o["id"]: body_fields[o["id"]].value for o in selecionados}
 
         total = len(selecionados)
         sent = [0]
@@ -422,15 +495,8 @@ def show_email_dialog(ctrl: AppController) -> None:
                     except Exception:
                         pass
 
-                    subj = build_email_subject(
-                        client_code,
-                        ocr_snap.get("cliente", ""),
-                        ocr_snap.get("numero_contrato", ""),
-                    )
-                    body = build_email_body(
-                        o["supplier"], ocr_snap, client_code, emp_snap, loja_nome,
-                        is_especial=o.get("is_especial", False),
-                    )
+                    subj = subj_snap[o["id"]]
+                    body = body_snap[o["id"]]
                     send_order_email(
                         smtp_snap, remetente, senha,
                         cc_snap[o["id"]], subj, body, o["path"],
