@@ -18,6 +18,12 @@
 
 # Segredos — nunca commitar
 .env
+# Config central com credenciais — vive no Gist secreto, não no repo.
+# Fica local só como fallback embutido no build.
+lojas.config
+.admin_token
+# Localização do gist central (a URL do gist é a credencial de leitura).
+remote.json
 
 # Ambientes virtuais
 .venv/

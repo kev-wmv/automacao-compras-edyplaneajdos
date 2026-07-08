@@ -154,13 +154,15 @@ def apply_update(new_exe_path: Path) -> None:
     exe_name = current_exe.name  # "EncomendasEdy.exe"
     bat_path = current_exe.parent / "update_helper.bat"
 
-    # taskkill /F /IM <exe> /T mata a árvore inteira (Python + Flutter desktop runtime).
-    # Necessário porque Flet desktop roda Flutter em processo separado que fica órfão
-    # quando o Python exita via os._exit.
+    # Flet desktop roda o runtime Flutter num processo SEPARADO chamado "flet.exe"
+    # (de %USERPROFILE%\.flet\client\...), neto do EncomendasEdy.exe. O taskkill
+    # por nome do exe principal não o alcança e ele fica órfão -> janela fantasma
+    # após o update (bug histórico desde v1.0.39). Matamos ambos explicitamente.
     bat_content = (
         "@echo off\r\n"
         "timeout /t 2 /nobreak > NUL\r\n"
         f'taskkill /F /IM "{exe_name}" /T > NUL 2>&1\r\n'
+        'taskkill /F /IM "flet.exe" > NUL 2>&1\r\n'
         "timeout /t 1 /nobreak > NUL\r\n"
         f'move /y "{new_exe_path}" "{current_exe}"\r\n'
         f'start "" "{current_exe}"\r\n'

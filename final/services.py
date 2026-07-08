@@ -11,6 +11,7 @@ from .cadastro_clientes_finger import (
     OCR_FIELD_LABELS,
     cadastrar_cliente,
     ensure_config,
+    save_config,
     get_contact_settings,
 )
 from .cadastro_clientes_vitta import cadastrar_cliente_vitta

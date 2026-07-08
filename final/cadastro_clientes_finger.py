@@ -633,14 +633,45 @@ def get_contact_settings(config_data: Optional[Mapping[str, Any]] = None) -> Dic
     return resolved
 
 
-def ensure_config(include_meta: bool = False) -> Dict[str, Any]:
+def _load_config_raw() -> Dict[str, Any]:
+    """Obtém o dict de config bruto: gist central > cache > embutido no .exe."""
+    try:
+        from . import remote_config  # import tardio evita ciclo/custo no import
+    except ImportError:  # execução como script solto
+        import remote_config  # type: ignore[no-redef]
+
+    text = remote_config.load_config_text()
+    if text is not None:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass  # config remota corrompida -> cai no embutido
+
+    # Fallback: arquivo embutido no .exe (ou local em dev)
     config_path = _config_path()
     if not config_path.exists():
         _bootstrap_user_config(_default_config_data(), config_path)
+    return _load_json_object(config_path, config_path.name)
 
-    raw_data = _load_json_object(config_path, config_path.name)
+
+def ensure_config(include_meta: bool = False) -> Dict[str, Any]:
+    raw_data = _load_config_raw()
     normalized_data = _validate_and_normalize_config(raw_data)
     return normalized_data if include_meta else normalized_data["stores"]
+
+
+def save_config(normalized_data: Mapping[str, Any]) -> None:
+    """Publica a config (já normalizada) no gist central, propagando a todos.
+
+    Levanta PermissionError se a máquina não for a estação de admin.
+    """
+    try:
+        from . import remote_config
+    except ImportError:
+        import remote_config  # type: ignore[no-redef]
+
+    text = json.dumps(normalized_data, indent=4, ensure_ascii=False)
+    remote_config.save_config_text(text)
 
 
 

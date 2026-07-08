@@ -12,6 +12,7 @@ ENTRY_POINT = PROJECT_ROOT / "run_app.py"
 DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 CONFIG_PATH = PROJECT_ROOT / "lojas.config"
+REMOTE_SETTINGS_PATH = PROJECT_ROOT / "remote.json"
 VERSION_FILE = PROJECT_ROOT / "version.txt"
 ICON_PATH = PROJECT_ROOT / "icon.ico"
 GENERATED_VERSION_MODULE = PROJECT_ROOT / "final" / "app" / "_version.py"
@@ -217,9 +218,12 @@ def _build_command(python_executable: Path, runtime_archive: Path) -> Sequence[s
         "flet.controls.cupertino",
         "--add-data",
         f"{runtime_archive}{os.pathsep}flet_desktop/app",
-        # Embute lojas.config dentro do .exe (oculto do usuário final)
+        # Embute lojas.config dentro do .exe (fallback offline; fonte real é o gist)
         "--add-data",
         f"{CONFIG_PATH}{os.pathsep}.",
+        # Localização do gist central (gitignored, fora do repositório público)
+        "--add-data",
+        f"{REMOTE_SETTINGS_PATH}{os.pathsep}.",
         # Dependências para auto-atualização via HTTPS
         "--hidden-import", "requests",
         "--hidden-import", "urllib3",

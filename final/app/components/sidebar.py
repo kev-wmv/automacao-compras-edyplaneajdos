@@ -256,6 +256,19 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         style=_icon_btn_style,
     )
 
+    # Botão de administração — só aparece na estação com credencial de admin
+    from ...remote_config import has_admin_access
+    admin_btn = ft.IconButton(
+        icon=ft.Icons.ADMIN_PANEL_SETTINGS_OUTLINED,
+        icon_size=16,
+        tooltip="Administração (config central)",
+        icon_color=C_ON_SURFACE_VARIANT,
+        width=36,
+        height=30,
+        style=_icon_btn_style,
+        visible=has_admin_access(),
+    )
+
     # ── Contagem de PDFs ──────────────────────────────────────────────────────
     def update_pdf_count() -> None:
         pendentes = [o for o in ctrl.state.pdf_orders
@@ -318,7 +331,7 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
         headless_cb,
         start_btn,
         send_pdf_btn,
-        ft.Row([log_toggle_btn, log_clear_btn, update_check_btn], spacing=4,
+        ft.Row([log_toggle_btn, log_clear_btn, update_check_btn, admin_btn], spacing=4,
                alignment=ft.MainAxisAlignment.CENTER),
     ], spacing=10, expand=True)
 
@@ -335,5 +348,6 @@ def build_sidebar(ctrl: AppController) -> ft.Container:
     sidebar.log_clear_btn = log_clear_btn  # type: ignore[attr-defined]
     sidebar.send_pdf_btn = send_pdf_btn  # type: ignore[attr-defined]
     sidebar.update_check_btn = update_check_btn  # type: ignore[attr-defined]
+    sidebar.admin_btn = admin_btn  # type: ignore[attr-defined]
 
     return sidebar
